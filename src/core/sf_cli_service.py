@@ -139,6 +139,32 @@ class SalesforceCliService:
         self._emit_log(f"Retrieve termine dans {source_path}")
         return source_path
 
+    def generate_org_check_excel(
+        self,
+        check_name: str,
+        target_org: str,
+        output_file: str | Path,
+    ) -> Path:
+        output_path = Path(output_file).resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        command = [
+            self.sf_executable,
+            "check",
+            check_name,
+            "--target-org",
+            target_org,
+            "--xlsx-file",
+            str(output_path),
+        ]
+        self._emit_log(
+            f"Lancement org check `{check_name}` sur `{target_org}` vers `{output_path}`."
+        )
+        self._run_streaming(command, cwd=self.workspace_dir)
+        if not output_path.exists():
+            raise RuntimeError("Le fichier Excel Org Check n'a pas ete genere au chemin attendu.")
+        self._emit_log(f"Org check termine: {output_path}")
+        return output_path
+
     def _ensure_project(self) -> None:
         self.project_dir.mkdir(parents=True, exist_ok=True)
         package_dir = self.project_dir / "force-app"

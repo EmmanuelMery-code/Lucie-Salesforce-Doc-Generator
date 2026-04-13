@@ -9,16 +9,29 @@ from src.reviewers.heuristics import review_apex_artifact, review_flow
 
 
 class SalesforceDocumentationGenerator:
-    def __init__(self, source_dir: str | Path, output_dir: str | Path, log_callback=None) -> None:
+    def __init__(
+        self,
+        source_dir: str | Path,
+        output_dir: str | Path,
+        exclusion_config_path: str | Path | None = None,
+        log_callback=None,
+    ) -> None:
         self.source_dir = Path(source_dir).resolve()
         self.output_dir = Path(output_dir).resolve()
+        self.exclusion_config_path = (
+            Path(exclusion_config_path).resolve() if exclusion_config_path else None
+        )
         self.log = log_callback or (lambda message: None)
 
     def generate(self) -> dict[str, object]:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.log("Debut de l'analyse Salesforce.")
 
-        parser = SalesforceMetadataParser(self.source_dir, log_callback=self.log)
+        parser = SalesforceMetadataParser(
+            self.source_dir,
+            exclusion_config_path=self.exclusion_config_path,
+            log_callback=self.log,
+        )
         snapshot = parser.parse()
         self.log("Lecture des metadata terminee.")
 
@@ -46,9 +59,16 @@ class SalesforceDocumentationGenerator:
         flow_reviews = {flow.name: review_flow(flow) for flow in snapshot.flows}
 
         object_pages = html_writer.write_object_pages(snapshot)
-        apex_pages = html_writer.write_apex_pages(snapshot.apex_artifacts, apex_reviews)
-        flow_pages = html_writer.write_flow_pages(snapshot.flows, flow_reviews)
-        index_path = html_writer.write_index(snapshot, object_pages, apex_pages, flow_pages)
+        apex_pages = html_writer.write_apex_pages(snapshot, apex_reviews)
+        flow_pages = html_writer.write_flow_pages(snapshot, flow_reviews, object_pages, apex_pages)
+        index_path = html_writer.write_index(
+            snapshot,
+            object_pages,
+            apex_pages,
+            flow_pages,
+            apex_reviews,
+            flow_reviews,
+        )
 
         self.log("Generation terminee.")
         return {

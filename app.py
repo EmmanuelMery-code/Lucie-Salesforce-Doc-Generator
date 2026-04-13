@@ -19,6 +19,7 @@ class Application(tk.Tk):
         "custom": "",
     }
     LANGUAGES = {"fr": "Francais", "en": "English"}
+    ORG_CHECK_CHOICES = ["apex-classes", "global-view", "hardcoded-urls"]
     TRANSLATIONS = {
         "fr": {
             "window_title": "Lucie : Salesforce Doc Generator",
@@ -31,6 +32,9 @@ class Application(tk.Tk):
             "instance_url": "Instance URL",
             "org_available": "Org disponible",
             "documentation_generation": "Generation de documentation",
+            "exclusion_file": "Fichier exclusions",
+            "org_check": "Org Check",
+            "org_check_type": "Type de check",
             "source_folder": "Dossier source",
             "output_folder": "Dossier de sortie",
             "browse": "Parcourir",
@@ -41,6 +45,7 @@ class Application(tk.Tk):
             "retrieve": "Faire retrieve",
             "full_pipeline": "Manifest + Retrieve + Doc",
             "generate_doc": "Generer la documentation",
+            "generate_org_check_excel": "Generer l'excel",
             "ready": "Pret.",
             "operation_done": "Operation terminee.",
             "operation_failed": "Echec de l'operation.",
@@ -58,11 +63,14 @@ class Application(tk.Tk):
             "select_org_manifest": "Selectionnez une org avant de generer le manifest.",
             "select_org_retrieve": "Selectionnez une org avant de lancer le retrieve.",
             "select_org_pipeline": "Selectionnez une org avant de lancer le pipeline complet.",
+            "select_org_org_check": "Selectionnez une org avant de lancer un org check.",
+            "org_check_choice_required": "Selectionnez un type de org check.",
             "manifest_missing_title": "Manifest absent",
             "manifest_missing_message": "Aucun manifest n'a ete trouve dans le dossier source. Voulez-vous le generer puis lancer le retrieve ?",
             "action_already_running": "Une action est deja en cours.",
             "choose_source_folder": "Choisir le dossier source",
             "choose_output_folder": "Choisir le dossier de sortie",
+            "choose_exclusion_file": "Choisir le fichier de configuration",
             "loading_orgs": "Chargement des orgs Salesforce...",
             "org_list_refreshed": "Liste des orgs actualisee.",
             "orgs_loaded": "{count} org(s) chargee(s) dans l'interface.",
@@ -76,6 +84,9 @@ class Application(tk.Tk):
             "manifest_retrieve_done": "Manifest genere puis retrieve termine.",
             "pipeline_in_progress": "Manifest + retrieve + documentation en cours...",
             "pipeline_done": "Pipeline complet termine.",
+            "org_check_in_progress": "Generation Org Check en cours...",
+            "org_check_done": "Org Check termine.",
+            "org_check_ready": "Excel Org Check genere: {path}",
             "doc_in_progress": "Generation de la documentation en cours...",
             "doc_done": "Generation terminee.",
             "branding_error": "Impossible de charger l'image Lucie.png pour le branding.",
@@ -98,6 +109,9 @@ class Application(tk.Tk):
             "instance_url": "Instance URL",
             "org_available": "Available org",
             "documentation_generation": "Documentation generation",
+            "exclusion_file": "Exclusion file",
+            "org_check": "Org Check",
+            "org_check_type": "Check type",
             "source_folder": "Source folder",
             "output_folder": "Output folder",
             "browse": "Browse",
@@ -108,6 +122,7 @@ class Application(tk.Tk):
             "retrieve": "Run retrieve",
             "full_pipeline": "Manifest + Retrieve + Docs",
             "generate_doc": "Generate documentation",
+            "generate_org_check_excel": "Generate excel",
             "ready": "Ready.",
             "operation_done": "Operation completed.",
             "operation_failed": "Operation failed.",
@@ -125,11 +140,14 @@ class Application(tk.Tk):
             "select_org_manifest": "Select an org before generating the manifest.",
             "select_org_retrieve": "Select an org before running retrieve.",
             "select_org_pipeline": "Select an org before running the full pipeline.",
+            "select_org_org_check": "Select an org before running an org check.",
+            "org_check_choice_required": "Select an org check type.",
             "manifest_missing_title": "Manifest missing",
             "manifest_missing_message": "No manifest was found in the source folder. Do you want to generate it and then run retrieve?",
             "action_already_running": "An action is already running.",
             "choose_source_folder": "Choose source folder",
             "choose_output_folder": "Choose output folder",
+            "choose_exclusion_file": "Choose configuration file",
             "loading_orgs": "Loading Salesforce orgs...",
             "org_list_refreshed": "Org list refreshed.",
             "orgs_loaded": "{count} org(s) loaded in the interface.",
@@ -143,6 +161,9 @@ class Application(tk.Tk):
             "manifest_retrieve_done": "Manifest generated and retrieve completed.",
             "pipeline_in_progress": "Manifest + retrieve + documentation in progress...",
             "pipeline_done": "Full pipeline completed.",
+            "org_check_in_progress": "Org check generation in progress...",
+            "org_check_done": "Org check completed.",
+            "org_check_ready": "Org check Excel generated: {path}",
             "doc_in_progress": "Documentation generation in progress...",
             "doc_done": "Generation completed.",
             "branding_error": "Unable to load Lucie.png for branding.",
@@ -167,12 +188,14 @@ class Application(tk.Tk):
 
         self.source_var = tk.StringVar()
         self.output_var = tk.StringVar()
+        self.exclusion_file_var = tk.StringVar(value=self.settings.get("exclusion_file", ""))
         self.alias_var = tk.StringVar()
         self.language_label_var = tk.StringVar(value=self.LANGUAGES.get(self.language, "Francais"))
         self.login_target_key = self.settings.get("login_target", "production")
         self.login_target_var = tk.StringVar()
         self.instance_url_var = tk.StringVar(value=self.settings.get("instance_url", self.LOGIN_TARGETS["production"]))
         self.selected_org_var = tk.StringVar()
+        self.org_check_choice_var = tk.StringVar(value=self.ORG_CHECK_CHOICES[0])
         self.status_var = tk.StringVar(value=self._t("ready"))
         self.hero_image: tk.PhotoImage | None = None
         self.icon_image: tk.PhotoImage | None = None
@@ -270,6 +293,25 @@ class Application(tk.Tk):
         self.full_pipeline_button = self._track_button(ttk.Button(org_row, command=self._run_full_pipeline))
         self.full_pipeline_button.pack(side="left")
 
+        self.org_check_frame = ttk.LabelFrame(frame, padding=12)
+        self.org_check_frame.pack(fill="x", pady=(0, 12))
+        org_check_row = ttk.Frame(self.org_check_frame)
+        org_check_row.pack(fill="x")
+        self.org_check_type_label = ttk.Label(org_check_row, width=18)
+        self.org_check_type_label.pack(side="left")
+        self.org_check_combo = ttk.Combobox(
+            org_check_row,
+            textvariable=self.org_check_choice_var,
+            values=self.ORG_CHECK_CHOICES,
+            state="readonly",
+            width=24,
+        )
+        self.org_check_combo.pack(side="left", padx=(0, 8))
+        self.org_check_button = self._track_button(
+            ttk.Button(org_check_row, command=self._run_org_check_excel)
+        )
+        self.org_check_button.pack(side="left")
+
         self.doc_frame = ttk.LabelFrame(frame, padding=12)
         self.doc_frame.pack(fill="x", pady=(0, 12))
 
@@ -278,6 +320,12 @@ class Application(tk.Tk):
         )
         self.output_folder_widgets = self._folder_picker(
             self.doc_frame, self.output_var, self._choose_output, self._open_output_folder
+        )
+        self.exclusion_file_widgets = self._file_picker(
+            self.doc_frame,
+            self.exclusion_file_var,
+            self._choose_exclusion_file,
+            self._open_exclusion_file,
         )
 
         button_row = ttk.Frame(self.doc_frame)
@@ -295,6 +343,23 @@ class Application(tk.Tk):
         wrapper = ttk.Frame(parent)
         wrapper.pack(fill="x", pady=6)
 
+        label = ttk.Label(wrapper, width=18)
+        label.pack(side="left")
+        entry = ttk.Entry(wrapper, textvariable=variable)
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        browse_button = self._track_button(ttk.Button(wrapper, command=browse_command))
+        browse_button.pack(side="left", padx=(0, 8))
+        open_button = self._track_button(ttk.Button(wrapper, command=open_command))
+        open_button.pack(side="left")
+        return {
+            "label": label,
+            "browse_button": browse_button,
+            "open_button": open_button,
+        }
+
+    def _file_picker(self, parent, variable: tk.StringVar, browse_command, open_command) -> dict[str, object]:
+        wrapper = ttk.Frame(parent)
+        wrapper.pack(fill="x", pady=6)
         label = ttk.Label(wrapper, width=18)
         label.pack(side="left")
         entry = ttk.Entry(wrapper, textvariable=variable)
@@ -345,6 +410,7 @@ class Application(tk.Tk):
             "language": self.language,
             "login_target": self.login_target_key,
             "instance_url": self.instance_url_var.get().strip(),
+            "exclusion_file": self.exclusion_file_var.get().strip(),
         }
         self.settings_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -380,6 +446,8 @@ class Application(tk.Tk):
         self.environment_label.configure(text=self._t("environment"))
         self.instance_url_label.configure(text=self._t("instance_url"))
         self.org_available_label.configure(text=self._t("org_available"))
+        self.org_check_frame.configure(text=self._t("org_check"))
+        self.org_check_type_label.configure(text=self._t("org_check_type"))
         self.doc_frame.configure(text=self._t("documentation_generation"))
         self.source_folder_widgets["label"].configure(text=self._t("source_folder"))
         self.source_folder_widgets["browse_button"].configure(text=self._t("browse"))
@@ -387,11 +455,15 @@ class Application(tk.Tk):
         self.output_folder_widgets["label"].configure(text=self._t("output_folder"))
         self.output_folder_widgets["browse_button"].configure(text=self._t("browse"))
         self.output_folder_widgets["open_button"].configure(text=self._t("open"))
+        self.exclusion_file_widgets["label"].configure(text=self._t("exclusion_file"))
+        self.exclusion_file_widgets["browse_button"].configure(text=self._t("browse"))
+        self.exclusion_file_widgets["open_button"].configure(text=self._t("open"))
         self.login_button.configure(text=self._t("web_login"))
         self.refresh_button.configure(text=self._t("refresh"))
         self.generate_manifest_button.configure(text=self._t("generate_manifest"))
         self.retrieve_button.configure(text=self._t("retrieve"))
         self.full_pipeline_button.configure(text=self._t("full_pipeline"))
+        self.org_check_button.configure(text=self._t("generate_org_check_excel"))
         self.generate_button.configure(text=self._t("generate_doc"))
         self.status_var.set(self._t("ready") if initial else self.status_var.get())
 
@@ -420,6 +492,15 @@ class Application(tk.Tk):
         if folder:
             self.output_var.set(folder)
 
+    def _choose_exclusion_file(self) -> None:
+        selected_path = filedialog.askopenfilename(
+            title=self._t("choose_exclusion_file"),
+            filetypes=[("Excel", "*.xlsx"), ("All files", "*.*")],
+        )
+        if selected_path:
+            self.exclusion_file_var.set(selected_path)
+            self._save_settings()
+
     def _open_folder(self, variable: tk.StringVar) -> None:
         folder = variable.get().strip()
         if not folder or not Path(folder).exists():
@@ -432,6 +513,23 @@ class Application(tk.Tk):
 
     def _open_output_folder(self) -> None:
         self._open_folder(self.output_var)
+
+    def _open_exclusion_file(self) -> None:
+        file_path = self.exclusion_file_var.get().strip()
+        if not file_path or not Path(file_path).exists():
+            messagebox.showerror(self._t("error_title"), self._t("directory_missing_to_open"))
+            return
+        os.startfile(file_path)  # type: ignore[attr-defined]
+
+    def _selected_exclusion_file(self) -> Path | None:
+        value = self.exclusion_file_var.get().strip()
+        if not value:
+            return None
+        path = Path(value)
+        if not path.exists() or path.is_dir():
+            messagebox.showerror(self._t("error_title"), self._t("directory_missing_to_open"))
+            return None
+        return path
 
     def _on_login_target_changed(self, _event=None) -> None:
         selected_target = self._login_target_key_from_display(self.login_target_var.get())
@@ -572,6 +670,9 @@ class Application(tk.Tk):
         self._append_log(self._t("pipeline_log", org=selected_org.org_ref))
         self._append_log(self._t("source_log", path=source))
         self._append_log(self._t("output_log", path=output))
+        exclusion_file = self._selected_exclusion_file()
+        if self.exclusion_file_var.get().strip() and exclusion_file is None:
+            return
 
         def task() -> dict[str, object]:
             manifest_path = self.cli_service.generate_manifest(selected_org.org_ref, source)
@@ -579,6 +680,7 @@ class Application(tk.Tk):
             return SalesforceDocumentationGenerator(
                 retrieved_path,
                 output,
+                exclusion_config_path=exclusion_file,
                 log_callback=self._queue_log,
             ).generate()
 
@@ -587,6 +689,35 @@ class Application(tk.Tk):
             task=task,
             success_message=self._t("pipeline_done"),
             on_success=lambda result: self._append_log(self._t("index_log", path=result["index"])),
+        )
+
+    def _run_org_check_excel(self) -> None:
+        selected_org = self._selected_org()
+        if selected_org is None:
+            messagebox.showerror(self._t("error_title"), self._t("select_org_org_check"))
+            return
+
+        check_choice = self.org_check_choice_var.get().strip()
+        if not check_choice:
+            messagebox.showerror(self._t("error_title"), self._t("org_check_choice_required"))
+            return
+
+        output = self._validate_output_dir()
+        if output is None:
+            return
+
+        excel_dir = output / "excel"
+        excel_path = excel_dir / f"{check_choice}.xlsx"
+        self._append_log(self._t("output_log", path=excel_dir))
+        self._start_task(
+            status_text=self._t("org_check_in_progress"),
+            task=lambda: self.cli_service.generate_org_check_excel(
+                check_choice, selected_org.org_ref, excel_path
+            ),
+            success_message=self._t("org_check_done"),
+            on_success=lambda generated_path: self._append_log(
+                self._t("org_check_ready", path=generated_path)
+            ),
         )
 
     def _validate_output_dir(self) -> Path | None:
@@ -622,9 +753,17 @@ class Application(tk.Tk):
 
         self._append_log(self._t("source_log", path=source))
         self._append_log(self._t("output_log", path=output))
+        exclusion_file = self._selected_exclusion_file()
+        if self.exclusion_file_var.get().strip() and exclusion_file is None:
+            return
         self._start_task(
             status_text=self._t("doc_in_progress"),
-            task=lambda: SalesforceDocumentationGenerator(source, output, log_callback=self._queue_log).generate(),
+            task=lambda: SalesforceDocumentationGenerator(
+                source,
+                output,
+                exclusion_config_path=exclusion_file,
+                log_callback=self._queue_log,
+            ).generate(),
             success_message=self._t("doc_done"),
             on_success=lambda result: self._append_log(self._t("index_log", path=result["index"])),
         )

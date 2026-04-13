@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections import Counter
+import fnmatch
 from pathlib import Path
 import json
 import re
+from openpyxl import load_workbook
 
 from src.core.models import (
     ApexArtifact,
@@ -28,9 +30,37 @@ from src.core.utils import SF_NS, child_text, child_texts, parse_xml, to_bool
 
 
 class SalesforceMetadataParser:
-    def __init__(self, source_dir: str | Path, log_callback=None) -> None:
+    CATEGORY_ALIASES = {
+        "all": "all",
+        "global": "all",
+        "objet": "object",
+        "objets": "object",
+        "object": "object",
+        "objects": "object",
+        "apex": "apex",
+        "classe": "apex",
+        "classes": "apex",
+        "trigger": "apex",
+        "triggers": "apex",
+        "flow": "flow",
+        "flows": "flow",
+        "lwc": "lwc",
+    }
+
+    def __init__(
+        self,
+        source_dir: str | Path,
+        exclusion_config_path: str | Path | None = None,
+        log_callback=None,
+    ) -> None:
         self.source_dir = Path(source_dir).resolve()
+        self.exclusion_config_path = (
+            Path(exclusion_config_path).resolve() if exclusion_config_path else None
+        )
         self.log = log_callback or (lambda message: None)
+        self.exclusion_rules: dict[str, list[str]] = self._load_exclusion_rules(
+            self.exclusion_config_path
+        )
 
     def parse(self) -> MetadataSnapshot:
         package_roots = self._resolve_package_roots()
@@ -75,6 +105,21 @@ class SalesforceMetadataParser:
         snapshot.permission_sets = sorted(permission_sets, key=lambda item: item.name.lower())
         snapshot.apex_artifacts = sorted(apex_artifacts, key=lambda item: item.name.lower())
         snapshot.flows = sorted(flows, key=lambda item: item.name.lower())
+        snapshot.objects = [
+            item
+            for item in snapshot.objects
+            if not self._is_excluded("object", item.api_name)
+        ]
+        snapshot.apex_artifacts = [
+            item
+            for item in snapshot.apex_artifacts
+            if not self._is_excluded("apex", item.name)
+        ]
+        snapshot.flows = [
+            item
+            for item in snapshot.flows
+            if not self._is_excluded("flow", item.name)
+        ]
         snapshot.inventory = self._build_inventory(snapshot)
 
         metrics.custom_objects = sum(1 for item in snapshot.objects if item.custom)
@@ -86,6 +131,74 @@ class SalesforceMetadataParser:
         metrics.apex_triggers = sum(1 for item in snapshot.apex_artifacts if item.kind == "trigger")
         snapshot.metrics = metrics
         return snapshot
+
+    def _load_exclusion_rules(
+        self, config_path: Path | None
+    ) -> dict[str, list[str]]:
+        rules: dict[str, list[str]] = {
+            "all": [],
+            "object": [],
+            "apex": [],
+            "flow": [],
+            "lwc": [],
+        }
+        if config_path is None:
+            return rules
+        if not config_path.exists():
+            self.log(f"Fichier de configuration hors analyse introuvable: {config_path}")
+            return rules
+
+        workbook = load_workbook(config_path, data_only=True, read_only=True)
+        sheet = None
+        for candidate in workbook.sheetnames:
+            if candidate.strip().lower() == "hors analyse":
+                sheet = workbook[candidate]
+                break
+        if sheet is None:
+            workbook.close()
+            self.log("Onglet `hors analyse` introuvable dans le fichier de configuration.")
+            return rules
+
+        for row in sheet.iter_rows(values_only=True):
+            values = [str(value).strip() for value in row if value is not None and str(value).strip()]
+            if not values:
+                continue
+            if values[0].startswith("#"):
+                continue
+
+            category = self.CATEGORY_ALIASES.get(values[0].lower(), "")
+            patterns: list[str] = []
+            if category:
+                raw = values[1] if len(values) > 1 else ""
+                patterns = [part.strip() for part in re.split(r"[;,]", raw) if part.strip()]
+                if not patterns and len(values) > 2:
+                    patterns = [part.strip() for part in re.split(r"[;,]", values[2]) if part.strip()]
+                if not patterns:
+                    continue
+            else:
+                category = "all"
+                patterns = [part.strip() for part in re.split(r"[;,]", values[0]) if part.strip()]
+
+            for pattern in patterns:
+                if pattern not in rules[category]:
+                    rules[category].append(pattern)
+
+        workbook.close()
+        total = sum(len(items) for items in rules.values())
+        if total:
+            self.log(f"{total} regle(s) hors analyse chargee(s) depuis {config_path}.")
+        return rules
+
+    def _is_excluded(self, category: str, name: str) -> bool:
+        candidates = self.exclusion_rules.get(category, []) + self.exclusion_rules.get("all", [])
+        lowered_name = name.lower()
+        for pattern in candidates:
+            lowered_pattern = pattern.lower()
+            if fnmatch.fnmatch(lowered_name, lowered_pattern):
+                return True
+            if lowered_pattern in lowered_name:
+                return True
+        return False
 
     def _build_inventory(self, snapshot: MetadataSnapshot) -> dict[str, list[dict[str, object]]]:
         return {
