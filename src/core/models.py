@@ -216,6 +216,17 @@ class ReviewResult:
 
 
 @dataclass(slots=True)
+class PmdViolation:
+    file_path: Path
+    rule: str
+    ruleset: str = ""
+    priority: str = ""
+    begin_line: int = 0
+    end_line: int = 0
+    message: str = ""
+
+
+@dataclass(slots=True)
 class CustomizationMetrics:
     custom_objects: int = 0
     custom_fields: int = 0

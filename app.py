@@ -7,25 +7,31 @@ from queue import Empty, Queue
 from threading import Thread
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
+import webbrowser
 
 from src.core.orchestrator import SalesforceDocumentationGenerator
 from src.core.sf_cli_service import OrgSummary, SalesforceCliService
 
 
 class Application(tk.Tk):
+    SF_CLI_DOWNLOAD_URL = "https://developer.salesforce.com/tools/salesforcecli"
+    PMD_DOWNLOAD_URL = "https://pmd.github.io/latest/pmd_userdocs_installation.html"
     LOGIN_TARGETS = {
         "production": "https://login.salesforce.com",
         "sandbox": "https://test.salesforce.com",
         "custom": "",
     }
     LANGUAGES = {"fr": "Francais", "en": "English"}
-    ORG_CHECK_CHOICES = ["apex-classes", "global-view", "hardcoded-urls"]
+    ORG_CHECK_CHOICES = ["apex-classes", "global-view", "hardcoded-url"]
     TRANSLATIONS = {
         "fr": {
             "window_title": "Lucie : Salesforce Doc Generator",
             "header_title": "Lucie : Salesforce Doc Generator",
             "header_description": "Choisissez les dossiers de travail, pilotez Salesforce CLI, puis lancez la generation de documentation.",
             "language": "Langue",
+            "download_menu": "Telechargement",
+            "download_sf_cli": "Telecharger Salesforce CLI (sf)",
+            "download_pmd": "Telecharger PMD",
             "salesforce_cli": "Salesforce CLI",
             "alias": "Alias",
             "environment": "Environnement",
@@ -33,6 +39,9 @@ class Application(tk.Tk):
             "org_available": "Org disponible",
             "documentation_generation": "Generation de documentation",
             "exclusion_file": "Fichier exclusions",
+            "pmd_quality": "Qualite PMD",
+            "pmd_enabled": "Activer PMD",
+            "pmd_ruleset_file": "Fichier ruleset PMD",
             "org_check": "Org Check",
             "org_check_type": "Type de check",
             "source_folder": "Dossier source",
@@ -71,6 +80,7 @@ class Application(tk.Tk):
             "choose_source_folder": "Choisir le dossier source",
             "choose_output_folder": "Choisir le dossier de sortie",
             "choose_exclusion_file": "Choisir le fichier de configuration",
+            "choose_pmd_ruleset_file": "Choisir le fichier ruleset PMD",
             "loading_orgs": "Chargement des orgs Salesforce...",
             "org_list_refreshed": "Liste des orgs actualisee.",
             "orgs_loaded": "{count} org(s) chargee(s) dans l'interface.",
@@ -103,6 +113,9 @@ class Application(tk.Tk):
             "header_title": "Lucie: Salesforce Doc Generator",
             "header_description": "Choose working folders, use Salesforce CLI, then generate the documentation.",
             "language": "Language",
+            "download_menu": "Downloads",
+            "download_sf_cli": "Download Salesforce CLI (sf)",
+            "download_pmd": "Download PMD",
             "salesforce_cli": "Salesforce CLI",
             "alias": "Alias",
             "environment": "Environment",
@@ -110,6 +123,9 @@ class Application(tk.Tk):
             "org_available": "Available org",
             "documentation_generation": "Documentation generation",
             "exclusion_file": "Exclusion file",
+            "pmd_quality": "PMD quality",
+            "pmd_enabled": "Enable PMD",
+            "pmd_ruleset_file": "PMD ruleset file",
             "org_check": "Org Check",
             "org_check_type": "Check type",
             "source_folder": "Source folder",
@@ -148,6 +164,7 @@ class Application(tk.Tk):
             "choose_source_folder": "Choose source folder",
             "choose_output_folder": "Choose output folder",
             "choose_exclusion_file": "Choose configuration file",
+            "choose_pmd_ruleset_file": "Choose PMD ruleset file",
             "loading_orgs": "Loading Salesforce orgs...",
             "org_list_refreshed": "Org list refreshed.",
             "orgs_loaded": "{count} org(s) loaded in the interface.",
@@ -186,10 +203,12 @@ class Application(tk.Tk):
         self.settings = self._load_settings()
         self.language = self.settings.get("language", "fr")
 
-        self.source_var = tk.StringVar()
-        self.output_var = tk.StringVar()
-        self.exclusion_file_var = tk.StringVar(value=self.settings.get("exclusion_file", ""))
-        self.alias_var = tk.StringVar()
+        self.source_var = tk.StringVar(value="")
+        self.output_var = tk.StringVar(value="")
+        self.exclusion_file_var = tk.StringVar(value="")
+        self.pmd_enabled_var = tk.BooleanVar(value=bool(self.settings.get("pmd_enabled", False)))
+        self.pmd_ruleset_var = tk.StringVar(value="")
+        self.alias_var = tk.StringVar(value="")
         self.language_label_var = tk.StringVar(value=self.LANGUAGES.get(self.language, "Francais"))
         self.login_target_key = self.settings.get("login_target", "production")
         self.login_target_var = tk.StringVar()
@@ -199,6 +218,7 @@ class Application(tk.Tk):
         self.status_var = tk.StringVar(value=self._t("ready"))
         self.hero_image: tk.PhotoImage | None = None
         self.icon_image: tk.PhotoImage | None = None
+        self.menu_bar: tk.Menu | None = None
 
         self.queue: Queue[tuple[str, object]] = Queue()
         self.worker: Thread | None = None
@@ -215,8 +235,30 @@ class Application(tk.Tk):
         self.after(250, lambda: self._refresh_orgs(initial=True))
 
     def _build_ui(self) -> None:
-        frame = ttk.Frame(self, padding=16)
-        frame.pack(fill="both", expand=True)
+        self._build_menu_bar()
+        container = ttk.Frame(self)
+        container.pack(fill="both", expand=True)
+        self.main_canvas = tk.Canvas(container, highlightthickness=0)
+        self.main_scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.main_canvas.yview)
+        self.main_canvas.configure(yscrollcommand=self.main_scrollbar.set)
+        self.main_scrollbar.pack(side="right", fill="y")
+        self.main_canvas.pack(side="left", fill="both", expand=True)
+
+        frame = ttk.Frame(self.main_canvas, padding=16)
+        canvas_window = self.main_canvas.create_window((0, 0), window=frame, anchor="nw")
+
+        def _on_frame_configure(_event) -> None:
+            self.main_canvas.configure(scrollregion=self.main_canvas.bbox("all"))
+
+        def _on_canvas_configure(event) -> None:
+            self.main_canvas.itemconfigure(canvas_window, width=event.width)
+
+        def _on_mousewheel(event) -> None:
+            self.main_canvas.yview_scroll(int(-event.delta / 120), "units")
+
+        frame.bind("<Configure>", _on_frame_configure)
+        self.main_canvas.bind("<Configure>", _on_canvas_configure)
+        self.main_canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         header_frame = ttk.Frame(frame)
         header_frame.pack(fill="x")
@@ -327,6 +369,22 @@ class Application(tk.Tk):
             self._choose_exclusion_file,
             self._open_exclusion_file,
         )
+        self.pmd_frame = ttk.LabelFrame(self.doc_frame, padding=8)
+        self.pmd_frame.pack(fill="x", pady=(2, 0))
+        pmd_toggle_row = ttk.Frame(self.pmd_frame)
+        pmd_toggle_row.pack(fill="x", pady=(0, 4))
+        self.pmd_enabled_check = ttk.Checkbutton(
+            pmd_toggle_row,
+            variable=self.pmd_enabled_var,
+            command=self._on_pmd_toggle,
+        )
+        self.pmd_enabled_check.pack(side="left")
+        self.pmd_file_widgets = self._file_picker(
+            self.pmd_frame,
+            self.pmd_ruleset_var,
+            self._choose_pmd_ruleset_file,
+            self._open_pmd_ruleset_file,
+        )
 
         button_row = ttk.Frame(self.doc_frame)
         button_row.pack(fill="x", pady=(8, 0))
@@ -337,6 +395,9 @@ class Application(tk.Tk):
 
         self.log_widget = scrolledtext.ScrolledText(frame, wrap="word", height=26)
         self.log_widget.pack(fill="both", expand=True)
+        self.log_widget.configure(state="disabled")
+        self.log_widget.configure(state="normal")
+        self.log_widget.delete("1.0", "end")
         self.log_widget.configure(state="disabled")
 
     def _folder_picker(self, parent, variable: tk.StringVar, browse_command, open_command) -> dict[str, object]:
@@ -378,6 +439,24 @@ class Application(tk.Tk):
         self.action_buttons.append(button)
         return button
 
+    def _build_menu_bar(self) -> None:
+        menu_bar = tk.Menu(self)
+        download_menu = tk.Menu(menu_bar, tearoff=False)
+        download_menu.add_command(
+            label=self._t("download_sf_cli"),
+            command=lambda: self._open_external_url(self.SF_CLI_DOWNLOAD_URL),
+        )
+        download_menu.add_command(
+            label=self._t("download_pmd"),
+            command=lambda: self._open_external_url(self.PMD_DOWNLOAD_URL),
+        )
+        menu_bar.add_cascade(label=self._t("download_menu"), menu=download_menu)
+        self.config(menu=menu_bar)
+        self.menu_bar = menu_bar
+
+    def _open_external_url(self, url: str) -> None:
+        webbrowser.open_new_tab(url)
+
     def _load_branding(self) -> None:
         image_path = self.app_dir / "image" / "Lucie.png"
         if not image_path.exists():
@@ -411,6 +490,8 @@ class Application(tk.Tk):
             "login_target": self.login_target_key,
             "instance_url": self.instance_url_var.get().strip(),
             "exclusion_file": self.exclusion_file_var.get().strip(),
+            "pmd_enabled": bool(self.pmd_enabled_var.get()),
+            "pmd_ruleset_file": self.pmd_ruleset_var.get().strip(),
         }
         self.settings_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -437,6 +518,7 @@ class Application(tk.Tk):
         return "production"
 
     def _apply_language(self, initial: bool = False) -> None:
+        self._build_menu_bar()
         self.title(self._t("window_title"))
         self.title_label.configure(text=self._t("header_title"))
         self.description_label.configure(text=self._t("header_description"))
@@ -458,6 +540,11 @@ class Application(tk.Tk):
         self.exclusion_file_widgets["label"].configure(text=self._t("exclusion_file"))
         self.exclusion_file_widgets["browse_button"].configure(text=self._t("browse"))
         self.exclusion_file_widgets["open_button"].configure(text=self._t("open"))
+        self.pmd_frame.configure(text=self._t("pmd_quality"))
+        self.pmd_enabled_check.configure(text=self._t("pmd_enabled"))
+        self.pmd_file_widgets["label"].configure(text=self._t("pmd_ruleset_file"))
+        self.pmd_file_widgets["browse_button"].configure(text=self._t("browse"))
+        self.pmd_file_widgets["open_button"].configure(text=self._t("open"))
         self.login_button.configure(text=self._t("web_login"))
         self.refresh_button.configure(text=self._t("refresh"))
         self.generate_manifest_button.configure(text=self._t("generate_manifest"))
@@ -472,6 +559,7 @@ class Application(tk.Tk):
         self.login_target_combo["values"] = [self._login_target_display(key) for key in self.LOGIN_TARGETS]
         self.login_target_var.set(self._login_target_display(self.login_target_key))
         self._on_login_target_changed()
+        self._apply_pmd_state()
 
     def _on_language_changed(self, _event=None) -> None:
         new_language = self._language_code_from_display(self.language_label_var.get())
@@ -501,6 +589,15 @@ class Application(tk.Tk):
             self.exclusion_file_var.set(selected_path)
             self._save_settings()
 
+    def _choose_pmd_ruleset_file(self) -> None:
+        selected_path = filedialog.askopenfilename(
+            title=self._t("choose_pmd_ruleset_file"),
+            filetypes=[("XML", "*.xml"), ("All files", "*.*")],
+        )
+        if selected_path:
+            self.pmd_ruleset_var.set(selected_path)
+            self._save_settings()
+
     def _open_folder(self, variable: tk.StringVar) -> None:
         folder = variable.get().strip()
         if not folder or not Path(folder).exists():
@@ -520,6 +617,34 @@ class Application(tk.Tk):
             messagebox.showerror(self._t("error_title"), self._t("directory_missing_to_open"))
             return
         os.startfile(file_path)  # type: ignore[attr-defined]
+
+    def _open_pmd_ruleset_file(self) -> None:
+        file_path = self.pmd_ruleset_var.get().strip()
+        if not file_path or not Path(file_path).exists():
+            messagebox.showerror(self._t("error_title"), self._t("directory_missing_to_open"))
+            return
+        os.startfile(file_path)  # type: ignore[attr-defined]
+
+    def _on_pmd_toggle(self) -> None:
+        self._apply_pmd_state()
+        self._save_settings()
+
+    def _apply_pmd_state(self) -> None:
+        enabled = bool(self.pmd_enabled_var.get())
+        state = "normal" if enabled else "disabled"
+        self.pmd_file_widgets["label"].configure(state=state)
+        self.pmd_file_widgets["browse_button"].configure(state=state)
+        self.pmd_file_widgets["open_button"].configure(state=state)
+
+    def _selected_pmd_ruleset_file(self) -> Path | None:
+        value = self.pmd_ruleset_var.get().strip()
+        if not value:
+            return None
+        path = Path(value)
+        if not path.exists() or path.is_dir():
+            messagebox.showerror(self._t("error_title"), self._t("directory_missing_to_open"))
+            return None
+        return path
 
     def _selected_exclusion_file(self) -> Path | None:
         value = self.exclusion_file_var.get().strip()
@@ -673,6 +798,9 @@ class Application(tk.Tk):
         exclusion_file = self._selected_exclusion_file()
         if self.exclusion_file_var.get().strip() and exclusion_file is None:
             return
+        pmd_ruleset = self._selected_pmd_ruleset_file() if self.pmd_enabled_var.get() else None
+        if self.pmd_enabled_var.get() and self.pmd_ruleset_var.get().strip() and pmd_ruleset is None:
+            return
 
         def task() -> dict[str, object]:
             manifest_path = self.cli_service.generate_manifest(selected_org.org_ref, source)
@@ -681,6 +809,8 @@ class Application(tk.Tk):
                 retrieved_path,
                 output,
                 exclusion_config_path=exclusion_file,
+                pmd_enabled=bool(self.pmd_enabled_var.get()),
+                pmd_ruleset_path=pmd_ruleset,
                 log_callback=self._queue_log,
             ).generate()
 
@@ -756,12 +886,17 @@ class Application(tk.Tk):
         exclusion_file = self._selected_exclusion_file()
         if self.exclusion_file_var.get().strip() and exclusion_file is None:
             return
+        pmd_ruleset = self._selected_pmd_ruleset_file() if self.pmd_enabled_var.get() else None
+        if self.pmd_enabled_var.get() and self.pmd_ruleset_var.get().strip() and pmd_ruleset is None:
+            return
         self._start_task(
             status_text=self._t("doc_in_progress"),
             task=lambda: SalesforceDocumentationGenerator(
                 source,
                 output,
                 exclusion_config_path=exclusion_file,
+                pmd_enabled=bool(self.pmd_enabled_var.get()),
+                pmd_ruleset_path=pmd_ruleset,
                 log_callback=self._queue_log,
             ).generate(),
             success_message=self._t("doc_done"),

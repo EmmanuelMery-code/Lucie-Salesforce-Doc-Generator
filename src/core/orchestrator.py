@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.core.models import PmdViolation
 from src.parsers.salesforce_parser import SalesforceMetadataParser
+from src.core.pmd_service import PmdService
 from src.reporting.excel_writer import ExcelReportWriter
 from src.reporting.html_writer import HtmlReportWriter
 from src.reviewers.heuristics import review_apex_artifact, review_flow
@@ -14,6 +16,8 @@ class SalesforceDocumentationGenerator:
         source_dir: str | Path,
         output_dir: str | Path,
         exclusion_config_path: str | Path | None = None,
+        pmd_enabled: bool = False,
+        pmd_ruleset_path: str | Path | None = None,
         log_callback=None,
     ) -> None:
         self.source_dir = Path(source_dir).resolve()
@@ -21,6 +25,8 @@ class SalesforceDocumentationGenerator:
         self.exclusion_config_path = (
             Path(exclusion_config_path).resolve() if exclusion_config_path else None
         )
+        self.pmd_enabled = pmd_enabled
+        self.pmd_ruleset_path = Path(pmd_ruleset_path).resolve() if pmd_ruleset_path else None
         self.log = log_callback or (lambda message: None)
 
     def generate(self) -> dict[str, object]:
@@ -57,9 +63,28 @@ class SalesforceDocumentationGenerator:
 
         apex_reviews = {artifact.name: review_apex_artifact(artifact) for artifact in snapshot.apex_artifacts}
         flow_reviews = {flow.name: review_flow(flow) for flow in snapshot.flows}
+        pmd_by_artifact: dict[str, list[PmdViolation]] = {
+            artifact.name: [] for artifact in snapshot.apex_artifacts
+        }
+        pmd_excel = None
+        if self.pmd_enabled:
+            pmd_service = PmdService(self.source_dir, log_callback=self.log)
+            pmd_result = pmd_service.analyze_apex(
+                snapshot.apex_artifacts,
+                ruleset_path=self.pmd_ruleset_path,
+            )
+            for violation in pmd_result.violations:
+                for artifact in snapshot.apex_artifacts:
+                    if artifact.source_path.resolve() == violation.file_path.resolve():
+                        pmd_by_artifact.setdefault(artifact.name, []).append(violation)
+                        break
+            pmd_excel = excel_writer.write_pmd_workbook(
+                pmd_by_artifact,
+                excel_dir / "pmd_violations.xlsx",
+            )
 
         object_pages = html_writer.write_object_pages(snapshot)
-        apex_pages = html_writer.write_apex_pages(snapshot, apex_reviews)
+        apex_pages = html_writer.write_apex_pages(snapshot, apex_reviews, pmd_by_artifact)
         flow_pages = html_writer.write_flow_pages(snapshot, flow_reviews, object_pages, apex_pages)
         index_path = html_writer.write_index(
             snapshot,
@@ -68,6 +93,7 @@ class SalesforceDocumentationGenerator:
             flow_pages,
             apex_reviews,
             flow_reviews,
+            pmd_by_artifact,
         )
 
         self.log("Generation terminee.")
@@ -76,6 +102,7 @@ class SalesforceDocumentationGenerator:
             "permission_excel": permission_excel,
             "profile_excel": profile_excel,
             "inventory_excel": inventory_excel,
+            "pmd_excel": pmd_excel,
             "index": index_path,
             "object_pages": object_pages,
             "apex_pages": apex_pages,

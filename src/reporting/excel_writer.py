@@ -6,7 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from src.core.models import SecurityArtifact
+from src.core.models import PmdViolation, SecurityArtifact
 
 
 class ExcelReportWriter:
@@ -188,6 +188,54 @@ class ExcelReportWriter:
 
         workbook.save(output)
         self.log(f"Classeur inventaire metadata genere: {output}")
+        return output
+
+    def write_pmd_workbook(
+        self,
+        violations_by_artifact: dict[str, list[PmdViolation]],
+        output_path: str | Path,
+    ) -> Path:
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        workbook = Workbook()
+        summary = workbook.active
+        summary.title = "Synthese"
+        self._write_sheet(
+            summary,
+            ["Composant", "Violations PMD"],
+            [
+                [artifact_name, len(violations)]
+                for artifact_name, violations in sorted(
+                    violations_by_artifact.items(), key=lambda item: item[0].lower()
+                )
+            ],
+        )
+
+        detail_rows = [
+            [
+                artifact_name,
+                violation.rule,
+                violation.ruleset,
+                violation.priority,
+                violation.begin_line,
+                violation.end_line,
+                violation.message,
+                str(violation.file_path),
+            ]
+            for artifact_name, violations in sorted(
+                violations_by_artifact.items(), key=lambda item: item[0].lower()
+            )
+            for violation in violations
+        ]
+        self._write_sheet(
+            workbook.create_sheet("Violations"),
+            ["Composant", "Regle", "Ruleset", "Priorite", "LigneDebut", "LigneFin", "Message", "Fichier"],
+            detail_rows,
+        )
+
+        workbook.save(output)
+        self.log(f"Classeur PMD genere: {output}")
         return output
 
     def _write_sheet(self, worksheet, headers: list[str], rows: list[list[object]]) -> None:

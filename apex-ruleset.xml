@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<ruleset name="MesRoles"
+    xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+ 
+
+    <description>
+        Ruleset simplifié pour Apex Salesforce dans le context Suez Eau France :
+        - Sécurité et performance critiques = priorité 1
+        - Erreurs fréquentes = priorité 2
+        - Bonnes pratiques et documentation = priorité 4
+    </description>
+
+    <!-- ========================================== -->
+    <!-- SÉCURITÉ - Bloquant (Critical) -->
+    <!-- ========================================== -->
+    <rule ref="category/apex/security.xml/ApexCRUDViolation">
+        <priority>1</priority>
+    </rule>
+    <rule ref="category/apex/security.xml/ApexSOQLInjection">
+        <priority>1</priority>
+    </rule>
+    <rule ref="category/apex/security.xml/ApexSharingViolations">
+        <priority>1</priority>
+    </rule>
+
+    <!-- ========================================== -->
+    <!--  PERFORMANCE - Bloquant (Critical) -->
+    <!-- ========================================== -->
+    <rule ref="category/apex/performance.xml/OperationWithLimitsInLoop">
+        <priority>1</priority>
+    </rule>
+    <rule ref="category/apex/performance.xml/AvoidDebugStatements">
+        <priority>2</priority>
+    </rule>
+
+    <!-- ========================================== -->
+    <!-- ERREURS FRÉQUENTES -->
+    <!-- ========================================== -->
+    <rule ref="category/apex/errorprone.xml/EmptyCatchBlock">
+        <priority>2</priority>
+    </rule>
+
+    <!-- ========================================== -->
+    <!--  DOCUMENTATION & BONNES PRATIQUES -->
+    <!-- ========================================== -->
+    <rule ref="category/apex/documentation.xml/ApexDoc">
+        <priority>4</priority>
+    </rule>
+    <rule ref="category/apex/bestpractices.xml/DebugsShouldUseLoggingLevel">
+        <priority>4</priority>
+    </rule>
+    <rule ref="category/apex/bestpractices.xml/ApexAssertionsShouldIncludeMessage">
+        <priority>3</priority>
+    </rule>
+
+</ruleset>

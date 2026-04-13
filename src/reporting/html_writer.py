@@ -10,6 +10,7 @@ from src.core.models import (
     FlowInfo,
     MetadataSnapshot,
     ObjectInfo,
+    PmdViolation,
     ReviewResult,
     SecurityArtifact,
 )
@@ -79,7 +80,10 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         return output
 
     def write_apex_pages(
-        self, snapshot: MetadataSnapshot, reviews: dict[str, ReviewResult]
+        self,
+        snapshot: MetadataSnapshot,
+        reviews: dict[str, ReviewResult],
+        pmd_results: dict[str, list[PmdViolation]],
     ) -> dict[str, Path]:
         artifacts = snapshot.apex_artifacts
         output: dict[str, Path] = {}
@@ -109,6 +113,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                     path,
                     output,
                     dependencies,
+                    pmd_results.get(artifact.name, []),
                 ),
             )
         self.log(f"{len(output)} page(s) Apex/Trigger generee(s).")
@@ -169,6 +174,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         flow_pages: dict[str, Path],
         apex_reviews: dict[str, ReviewResult],
         flow_reviews: dict[str, ReviewResult],
+        pmd_results: dict[str, list[PmdViolation]],
     ) -> Path:
         path = self.output_dir / "index.html"
         write_text(
@@ -180,6 +186,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                 flow_pages,
                 apex_reviews,
                 flow_reviews,
+                pmd_results,
                 path,
             ),
         )
@@ -257,6 +264,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         current_path: Path,
         apex_pages: dict[str, Path],
         dependencies: list[dict[str, str]],
+        pmd_violations: list[PmdViolation],
     ) -> str:
         metrics = "".join(
             f"<li><strong>{html_value(label)}:</strong> {html_value(value)}</li>"
@@ -267,6 +275,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         code_preview = "\n".join(artifact.body.splitlines()[:120])
         dependency_rows = self._render_apex_dependency_rows(dependencies, current_path, apex_pages)
         dependency_graph = self._render_apex_dependency_graph(artifact, dependencies)
+        pmd_rows = self._render_pmd_rows(pmd_violations)
         tabs = self._tabbed_sections(
             f"apex-{safe_slug(artifact.name)}",
             [
@@ -274,6 +283,10 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                 ("Metriques", f"<ul>{metrics}</ul>"),
                 ("Points forts", positives),
                 ("Ameliorations", improvements),
+                (
+                    "PMD",
+                    f"<table><thead><tr><th>Regle</th><th>Ruleset</th><th>Priorite</th><th>Ligne</th><th>Message</th></tr></thead><tbody>{pmd_rows}</tbody></table>",
+                ),
                 (
                     "Liens",
                     f"<table><thead><tr><th>Composant lie</th><th>Categorie</th><th>Sous-type</th><th>Sens</th><th>Nature du lien</th></tr></thead><tbody>{dependency_rows}</tbody></table>",
@@ -360,6 +373,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         flow_pages: dict[str, Path],
         apex_reviews: dict[str, ReviewResult],
         flow_reviews: dict[str, ReviewResult],
+        pmd_results: dict[str, list[PmdViolation]],
         current_path: Path,
     ) -> str:
         metrics = snapshot.metrics
@@ -402,6 +416,12 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             apex_pages,
             flow_pages,
         )
+        pmd_rows = self._render_index_pmd_rows(
+            snapshot,
+            pmd_results,
+            current_path,
+            apex_pages,
+        )
         excel_links = self._render_excel_exports(current_path)
 
         tabs = self._tabbed_sections(
@@ -434,6 +454,10 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                 (
                     "Ameliorations",
                     f"<table><thead><tr><th>Type</th><th>Composant</th><th>Amelioration</th></tr></thead><tbody>{improvements_rows}</tbody></table>",
+                ),
+                (
+                    "Qualite PMD",
+                    f"<table><thead><tr><th>Composant</th><th>Regle</th><th>Priorite</th><th>Ligne</th><th>Message</th></tr></thead><tbody>{pmd_rows}</tbody></table>",
                 ),
             ],
         )
@@ -507,6 +531,33 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 
         return "".join(rows) or "<tr><td colspan='3' class='empty'>Aucune amelioration detectee.</td></tr>"
 
+    def _render_index_pmd_rows(
+        self,
+        snapshot: MetadataSnapshot,
+        pmd_results: dict[str, list[PmdViolation]],
+        current_path: Path,
+        apex_pages: dict[str, Path],
+    ) -> str:
+        rows: list[str] = []
+        for artifact in snapshot.apex_artifacts:
+            violations = pmd_results.get(artifact.name, [])
+            if not violations:
+                continue
+            target = apex_pages.get(artifact.name)
+            component = (
+                f"<a href='{self._href(current_path, target)}'>{html_value(artifact.name)}</a>"
+                if target
+                else html_value(artifact.name)
+            )
+            for violation in violations:
+                line_value = violation.begin_line or ""
+                rows.append(
+                    f"<tr><td>{component}</td><td>{html_value(violation.rule)}</td>"
+                    f"<td>{html_value(violation.priority)}</td><td>{html_value(line_value)}</td>"
+                    f"<td>{html_value(violation.message)}</td></tr>"
+                )
+        return "".join(rows) or "<tr><td colspan='5' class='empty'>Aucune violation PMD detectee.</td></tr>"
+
     def _security_rows(self, artifacts: list[SecurityArtifact], object_name: str) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
         prefix = f"{object_name}."
@@ -541,6 +592,23 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             f"<td>{html_value(row['editable_fields'])}</td></tr>"
             for row in rows
         )
+
+    def _render_pmd_rows(self, violations: list[PmdViolation]) -> str:
+        if not violations:
+            return "<tr><td colspan='5' class='empty'>Aucune violation PMD detectee.</td></tr>"
+        rows = []
+        for violation in violations:
+            line_display = (
+                f"{violation.begin_line}-{violation.end_line}"
+                if violation.begin_line and violation.end_line and violation.end_line != violation.begin_line
+                else str(violation.begin_line or "")
+            )
+            rows.append(
+                f"<tr><td>{html_value(violation.rule)}</td><td>{html_value(violation.ruleset)}</td>"
+                f"<td>{html_value(violation.priority)}</td><td>{html_value(line_display)}</td>"
+                f"<td>{html_value(violation.message)}</td></tr>"
+            )
+        return "".join(rows)
 
     def _object_mermaid(self, item: ObjectInfo) -> str:
         if not item.relationships:
