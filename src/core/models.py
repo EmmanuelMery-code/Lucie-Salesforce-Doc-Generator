@@ -226,6 +226,24 @@ class PmdViolation:
     message: str = ""
 
 
+DEFAULT_SCORING_WEIGHTS: dict[str, int] = {
+    "custom_objects": 8,
+    "custom_fields": 1,
+    "record_types": 2,
+    "validation_rules": 2,
+    "layouts": 1,
+    "custom_tabs": 3,
+    "custom_apps": 4,
+    "flows": 3,
+    "apex_classes": 3,
+    "apex_triggers": 3,
+    "omni_scripts": 4,
+    "omni_integration_procedures": 4,
+    "omni_ui_cards": 3,
+    "omni_data_transforms": 2,
+}
+
+
 @dataclass(slots=True)
 class CustomizationMetrics:
     custom_objects: int = 0
@@ -238,20 +256,38 @@ class CustomizationMetrics:
     flows: int = 0
     apex_classes: int = 0
     apex_triggers: int = 0
+    omni_scripts: int = 0
+    omni_integration_procedures: int = 0
+    omni_ui_cards: int = 0
+    omni_data_transforms: int = 0
+    weights: dict[str, int] | None = None
+
+    def _weight(self, key: str) -> int:
+        if self.weights is not None:
+            value = self.weights.get(key)
+            if isinstance(value, int):
+                return value
+            if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+                return int(value.strip())
+        return DEFAULT_SCORING_WEIGHTS[key]
 
     @property
     def score(self) -> int:
         return (
-            self.custom_objects * 8
-            + self.custom_fields
-            + self.record_types * 2
-            + self.validation_rules * 2
-            + self.layouts
-            + self.custom_tabs * 3
-            + self.custom_apps * 4
-            + self.flows * 3
-            + self.apex_classes * 3
-            + self.apex_triggers * 3
+            self.custom_objects * self._weight("custom_objects")
+            + self.custom_fields * self._weight("custom_fields")
+            + self.record_types * self._weight("record_types")
+            + self.validation_rules * self._weight("validation_rules")
+            + self.layouts * self._weight("layouts")
+            + self.custom_tabs * self._weight("custom_tabs")
+            + self.custom_apps * self._weight("custom_apps")
+            + self.flows * self._weight("flows")
+            + self.apex_classes * self._weight("apex_classes")
+            + self.apex_triggers * self._weight("apex_triggers")
+            + self.omni_scripts * self._weight("omni_scripts")
+            + self.omni_integration_procedures * self._weight("omni_integration_procedures")
+            + self.omni_ui_cards * self._weight("omni_ui_cards")
+            + self.omni_data_transforms * self._weight("omni_data_transforms")
         )
 
     @property

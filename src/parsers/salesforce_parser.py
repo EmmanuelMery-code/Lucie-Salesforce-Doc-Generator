@@ -99,6 +99,18 @@ class SalesforceMetadataParser:
                     if not path.stem.startswith("standard__")
                 ]
             )
+            metrics.omni_scripts += len(
+                list((package_root / "omniScripts").glob("*.os-meta.xml"))
+            )
+            metrics.omni_integration_procedures += len(
+                list((package_root / "omniIntegrationProcedures").glob("*.oip-meta.xml"))
+            )
+            metrics.omni_ui_cards += len(
+                list((package_root / "omniUiCard").glob("*.ouc-meta.xml"))
+            )
+            metrics.omni_data_transforms += len(
+                list((package_root / "omniDataTransforms").glob("*.rpt-meta.xml"))
+            )
 
         snapshot.objects = sorted(objects.values(), key=lambda item: item.api_name.lower())
         snapshot.profiles = sorted(profiles, key=lambda item: item.name.lower())

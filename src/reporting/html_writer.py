@@ -25,6 +25,7 @@ class HtmlReportWriter:
         self.objects_dir = self.output_dir / "objects"
         self.apex_dir = self.output_dir / "apex"
         self.flows_dir = self.output_dir / "flows"
+        self.omni_dir = self.output_dir / "omni"
 
     def write_assets(self) -> None:
         style = """
@@ -166,6 +167,65 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         self.log(f"{len(output)} page(s) Flow generee(s).")
         return output
 
+    OMNI_SCORING_FOLDERS: dict[str, str] = {
+        "omniscripts": "OmniScripts",
+        "omniintegrationprocedures": "Integration Procedures",
+        "omniuicard": "Omni UI Cards",
+        "omnidatatransforms": "Data Transforms",
+    }
+
+    def write_omni_pages(
+        self, snapshot: MetadataSnapshot
+    ) -> dict[str, list[dict[str, object]]]:
+        rows = snapshot.inventory.get("omnistudio") or []
+        grouped: dict[str, list[dict[str, object]]] = {}
+        for row in rows:
+            subcategory_raw = str(row.get("Dossier") or "").strip()
+            label = self.OMNI_SCORING_FOLDERS.get(subcategory_raw.lower())
+            if not label:
+                continue
+            grouped.setdefault(label, []).append(row)
+
+        output: dict[str, list[dict[str, object]]] = {}
+        total = 0
+        for subcategory in sorted(grouped.keys(), key=lambda value: value.lower()):
+            sub_slug = safe_slug(subcategory) or "autres"
+            entries: list[dict[str, object]] = []
+            used_slugs: set[str] = set()
+            for row in sorted(grouped[subcategory], key=lambda item: str(item.get("Nom") or "").lower()):
+                name = str(row.get("Nom") or "").strip() or "Sans nom"
+                base_slug = safe_slug(name) or "composant"
+                candidate_slug = base_slug
+                counter = 2
+                while candidate_slug in used_slugs:
+                    candidate_slug = f"{base_slug}-{counter}"
+                    counter += 1
+                used_slugs.add(candidate_slug)
+
+                page_path = self.omni_dir / sub_slug / f"{candidate_slug}.html"
+                source_rel = str(row.get("Source") or "")
+                content = self._render_omni_page(
+                    name=name,
+                    subcategory=subcategory,
+                    row=row,
+                    snapshot=snapshot,
+                    current_path=page_path,
+                )
+                write_text(page_path, content)
+                entries.append(
+                    {
+                        "name": name,
+                        "page": page_path,
+                        "source": source_rel,
+                        "type": str(row.get("TypeFichier") or ""),
+                    }
+                )
+                total += 1
+            output[subcategory] = entries
+
+        self.log(f"{total} page(s) OmniStudio generee(s).")
+        return output
+
     def write_index(
         self,
         snapshot: MetadataSnapshot,
@@ -175,6 +235,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         apex_reviews: dict[str, ReviewResult],
         flow_reviews: dict[str, ReviewResult],
         pmd_results: dict[str, list[PmdViolation]],
+        omni_pages: dict[str, list[dict[str, object]]] | None = None,
     ) -> Path:
         path = self.output_dir / "index.html"
         write_text(
@@ -188,6 +249,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                 flow_reviews,
                 pmd_results,
                 path,
+                omni_pages or {},
             ),
         )
         self.log(f"Index genere: {path}")
@@ -245,7 +307,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             ],
         )
         body = f"""
-<div class="topnav"><a href="{self._href(current_path, self.output_dir / 'index.html')}">Retour a l'index</a></div>
+{self._index_back_link(current_path, "objets")}
 <h1>{html_value(item.api_name)}</h1>
 <div class="cards">
   <div class="card"><span>Champs</span><span class="value">{len(item.fields)}</span></div>
@@ -296,7 +358,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             ],
         )
         body = f"""
-<div class="topnav"><a href="{self._href(current_path, self.output_dir / 'index.html')}">Retour a l'index</a></div>
+{self._index_back_link(current_path, "apex-trigger")}
 <h1>{html_value(artifact.name)}</h1>
 <span class="badge">{html_value(artifact.kind)}</span>
 {tabs}
@@ -348,7 +410,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             ],
         )
         body = f"""
-<div class="topnav"><a href="{self._href(current_path, self.output_dir / 'index.html')}">Retour a l'index</a></div>
+{self._index_back_link(current_path, "flows")}
 <h1>{html_value(flow.name)}</h1>
 <span class="badge">{html_value(flow.process_type or 'Flow')}</span>
 <span class="badge {self._complexity_badge_class(flow.complexity_level)}">{html_value(flow.complexity_level)}</span>
@@ -365,6 +427,63 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 """
         return self._page(flow.name, body, current_path)
 
+    def _render_omni_page(
+        self,
+        *,
+        name: str,
+        subcategory: str,
+        row: dict[str, object],
+        snapshot: MetadataSnapshot,
+        current_path: Path,
+    ) -> str:
+        source_rel = str(row.get("Source") or "")
+        file_type = str(row.get("TypeFichier") or "")
+        category_label = str(row.get("Categorie") or "OmniStudio")
+
+        meta_rows = [
+            ("Nom", name),
+            ("Categorie", category_label),
+            ("Sous-categorie", subcategory),
+            ("Type de fichier", file_type),
+            ("Source", source_rel or "Non renseigne"),
+        ]
+        meta_html = "".join(
+            f"<li><strong>{html_value(label)}:</strong> {html_value(value or 'Non renseigne')}</li>"
+            for label, value in meta_rows
+        )
+
+        preview_html = "<p class='empty'>Aucun contenu source exploitable.</p>"
+        if source_rel:
+            candidate = snapshot.source_dir / source_rel
+            if candidate.exists() and candidate.is_file():
+                try:
+                    raw_text = candidate.read_text(encoding="utf-8", errors="ignore")
+                except OSError:
+                    raw_text = ""
+                if raw_text:
+                    lines = raw_text.splitlines()
+                    preview_lines = lines[:200]
+                    truncated = len(lines) > len(preview_lines)
+                    preview_body = "\n".join(preview_lines)
+                    suffix = "\n..." if truncated else ""
+                    preview_html = f"<pre>{html_value(preview_body + suffix)}</pre>"
+
+        tabs = self._tabbed_sections(
+            f"omni-{safe_slug(subcategory)}-{safe_slug(name)}",
+            [
+                ("Synthese", f"<ul>{meta_html}</ul>"),
+                ("Contenu", preview_html),
+            ],
+        )
+        body = f"""
+{self._index_back_link(current_path, "omni")}
+<h1>{html_value(name)}</h1>
+<span class="badge">{html_value(category_label)}</span>
+<span class="badge">{html_value(subcategory)}</span>
+{tabs}
+"""
+        return self._page(name, body, current_path, include_mermaid=False)
+
     def _render_index(
         self,
         snapshot: MetadataSnapshot,
@@ -375,6 +494,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         flow_reviews: dict[str, ReviewResult],
         pmd_results: dict[str, list[PmdViolation]],
         current_path: Path,
+        omni_pages: dict[str, list[dict[str, object]]],
     ) -> str:
         metrics = snapshot.metrics
         object_rows = "".join(
@@ -423,6 +543,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             apex_pages,
         )
         excel_links = self._render_excel_exports(current_path)
+        omni_panel = self._render_index_omni_panel(omni_pages, current_path)
 
         tabs = self._tabbed_sections(
             "index",
@@ -430,6 +551,10 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                 (
                     "Exports Excel",
                     excel_links,
+                ),
+                (
+                    "Omni",
+                    omni_panel,
                 ),
                 (
                     "Objets",
@@ -461,6 +586,12 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                 ),
             ],
         )
+        omni_total = (
+            metrics.omni_scripts
+            + metrics.omni_integration_procedures
+            + metrics.omni_ui_cards
+            + metrics.omni_data_transforms
+        )
         body = f"""
 <h1>Documentation Salesforce</h1>
 <p>Source analysee: <code>{html_value(snapshot.source_dir)}</code></p>
@@ -471,10 +602,49 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
   <div class="card"><span>Champs custom</span><span class="value">{metrics.custom_fields}</span></div>
   <div class="card"><span>Flows</span><span class="value">{metrics.flows}</span></div>
   <div class="card"><span>Classes / Triggers</span><span class="value">{metrics.apex_classes + metrics.apex_triggers}</span></div>
+  <div class="card"><span>Composants Omni</span><span class="value">{omni_total}</span></div>
 </div>
 {tabs}
 """
         return self._page("Index", body, current_path, include_mermaid=False)
+
+    def _render_index_omni_panel(
+        self,
+        omni_pages: dict[str, list[dict[str, object]]],
+        current_path: Path,
+    ) -> str:
+        if not omni_pages:
+            return "<p class='empty'>Aucun composant OmniStudio detecte.</p>"
+
+        sections: list[tuple[str, str]] = []
+        for subcategory in sorted(omni_pages.keys(), key=lambda value: value.lower()):
+            entries = omni_pages[subcategory]
+            if not entries:
+                rows = "<tr><td colspan='3' class='empty'>Aucun composant dans cette categorie.</td></tr>"
+            else:
+                rendered_rows: list[str] = []
+                for entry in entries:
+                    name = str(entry.get("name") or "")
+                    page_path = entry.get("page")
+                    source = str(entry.get("source") or "")
+                    file_type = str(entry.get("type") or "")
+                    if isinstance(page_path, Path):
+                        link = f"<a href='{self._href(current_path, page_path)}'>{html_value(name)}</a>"
+                    else:
+                        link = html_value(name)
+                    rendered_rows.append(
+                        f"<tr><td>{link}</td><td>{html_value(file_type)}</td><td>{html_value(source)}</td></tr>"
+                    )
+                rows = "".join(rendered_rows)
+
+            label = f"{subcategory} ({len(entries)})"
+            table = (
+                "<table><thead><tr><th>Composant</th><th>Type</th><th>Source</th></tr></thead>"
+                f"<tbody>{rows}</tbody></table>"
+            )
+            sections.append((label, table))
+
+        return self._tabbed_sections("index-omni", sections)
 
     def _render_excel_exports(self, current_path: Path) -> str:
         excel_dir = self.output_dir / "excel"
@@ -485,11 +655,113 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         if not files:
             return "<p class='empty'>Aucun export Excel detecte.</p>"
 
-        items = []
+        rows: list[str] = []
         for file_path in files:
-            href = self._href(current_path, file_path)
-            items.append(f"<li><a href='{href}'>{html_value(file_path.name)}</a></li>")
-        return "<ul>" + "".join(items) + "</ul>"
+            xlsx_href = self._href(current_path, file_path)
+            preview_path = file_path.with_suffix(".html")
+            if preview_path.exists():
+                preview_href = self._href(current_path, preview_path)
+                preview_cell = (
+                    f"<a href='{preview_href}'>{html_value(file_path.stem)}</a>"
+                )
+            else:
+                preview_cell = (
+                    f"<span class='empty'>{html_value(file_path.stem)}</span>"
+                )
+            rows.append(
+                f"<tr><td>{preview_cell}</td>"
+                f"<td><a href='{xlsx_href}'>{html_value(file_path.name)}</a></td></tr>"
+            )
+        return (
+            "<table><thead><tr><th>Apercu HTML</th><th>Fichier Excel</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table>"
+        )
+
+    def write_excel_preview_pages(self) -> dict[Path, Path]:
+        excel_dir = self.output_dir / "excel"
+        mapping: dict[Path, Path] = {}
+        if not excel_dir.exists():
+            return mapping
+
+        try:
+            from openpyxl import load_workbook
+        except ImportError as exc:
+            self.log(f"openpyxl indisponible, apercu Excel ignore: {exc}")
+            return mapping
+
+        for xlsx_path in sorted(excel_dir.glob("*.xlsx")):
+            try:
+                workbook = load_workbook(xlsx_path, read_only=True, data_only=True)
+            except Exception as exc:
+                self.log(f"Echec lecture {xlsx_path.name}: {exc}")
+                continue
+            try:
+                sections = self._build_excel_preview_sections(workbook)
+            finally:
+                workbook.close()
+            preview_path = xlsx_path.with_suffix(".html")
+            tabs = self._tabbed_sections(
+                f"excel-preview-{safe_slug(xlsx_path.stem)}", sections
+            )
+            xlsx_href = self._href(preview_path, xlsx_path)
+            body = f"""
+{self._index_back_link(preview_path, "exports-excel")}
+<h1>{html_value(xlsx_path.name)}</h1>
+<p>Apercu des feuilles du classeur. <a href="{xlsx_href}">Telecharger le fichier Excel original</a>.</p>
+{tabs}
+""".strip()
+            write_text(
+                preview_path,
+                self._page(xlsx_path.stem, body, preview_path, include_mermaid=False),
+            )
+            mapping[xlsx_path] = preview_path
+        if mapping:
+            self.log(f"{len(mapping)} apercu(s) HTML de classeur Excel genere(s).")
+        return mapping
+
+    def _build_excel_preview_sections(self, workbook) -> list[tuple[str, str]]:
+        max_rows = 500
+        sections: list[tuple[str, str]] = []
+        for sheet in workbook.worksheets:
+            headers: tuple | None = None
+            body_rows: list[str] = []
+            for index, row in enumerate(sheet.iter_rows(values_only=True)):
+                if index >= max_rows:
+                    body_rows.append(
+                        f"<tr><td colspan='{len(headers) if headers else 1}' "
+                        "class='empty'>... (apercu tronque a "
+                        f"{max_rows} lignes) ...</td></tr>"
+                    )
+                    break
+                if index == 0:
+                    headers = row
+                    continue
+                cells = "".join(
+                    f"<td>{html_value('' if value is None else value)}</td>"
+                    for value in row
+                )
+                body_rows.append(f"<tr>{cells}</tr>")
+
+            if headers:
+                header_cells = "".join(
+                    f"<th>{html_value('' if value is None else value)}</th>"
+                    for value in headers
+                )
+                table = (
+                    f"<table><thead><tr>{header_cells}</tr></thead>"
+                    f"<tbody>{''.join(body_rows)}</tbody></table>"
+                )
+            else:
+                table = "<p class='empty'>Feuille vide.</p>"
+
+            label = sheet.title or "Feuille"
+            sections.append((label, table))
+
+        if not sections:
+            sections.append(
+                ("Contenu", "<p class='empty'>Aucune feuille exploitable.</p>")
+            )
+        return sections
 
     def _render_index_improvements(
         self,
@@ -1192,9 +1464,17 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
     def _tabbed_sections(self, group_id: str, sections: list[tuple[str, str]]) -> str:
         button_html: list[str] = []
         panel_html: list[str] = []
+        used_slugs: set[str] = set()
         for index, (label, content) in enumerate(sections):
-            tab_id = f"{group_id}-tab-{index}"
-            panel_id = f"{group_id}-panel-{index}"
+            base_slug = safe_slug(label) or f"tab-{index}"
+            slug = base_slug
+            suffix = 1
+            while slug in used_slugs:
+                suffix += 1
+                slug = f"{base_slug}-{suffix}"
+            used_slugs.add(slug)
+            tab_id = f"{group_id}-tab-{slug}"
+            panel_id = f"{group_id}-panel-{slug}"
             active_class = " active" if index == 0 else ""
             button_html.append(
                 f"<button class='tab-button{active_class}' type='button' data-tab-group='{group_id}' data-tab-target='{panel_id}' id='{tab_id}'>{html_value(label)}</button>"
@@ -1215,18 +1495,35 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         tabs_script = """
 <script>
 (() => {
+  const activatePanel = (panel) => {
+    if (!panel) return false;
+    const group = panel.getAttribute("data-tab-panel");
+    if (!group) return false;
+    document.querySelectorAll(`[data-tab-group="${group}"]`).forEach((item) => item.classList.remove("active"));
+    document.querySelectorAll(`[data-tab-panel="${group}"]`).forEach((item) => item.classList.remove("active"));
+    panel.classList.add("active");
+    const button = document.querySelector(`[data-tab-group="${group}"][data-tab-target="${panel.id}"]`);
+    if (button) button.classList.add("active");
+    return true;
+  };
   document.querySelectorAll("[data-tab-group]").forEach((button) => {
     button.addEventListener("click", () => {
-      const group = button.getAttribute("data-tab-group");
       const target = button.getAttribute("data-tab-target");
-      if (!group || !target) return;
-      document.querySelectorAll(`[data-tab-group="${group}"]`).forEach((item) => item.classList.remove("active"));
-      document.querySelectorAll(`[data-tab-panel="${group}"]`).forEach((panel) => panel.classList.remove("active"));
-      button.classList.add("active");
-      const panel = document.getElementById(target);
-      if (panel) panel.classList.add("active");
+      if (!target) return;
+      activatePanel(document.getElementById(target));
     });
   });
+  const applyHash = () => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    activatePanel(document.getElementById(hash));
+  };
+  window.addEventListener("hashchange", applyHash);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", applyHash);
+  } else {
+    applyHash();
+  }
 })();
 </script>
 """.strip()
@@ -1250,3 +1547,13 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 
     def _href(self, from_path: Path, to_path: Path) -> str:
         return Path(os.path.relpath(to_path, from_path.parent)).as_posix()
+
+    def _index_href(self, from_path: Path, tab_slug: str | None = None) -> str:
+        href = self._href(from_path, self.output_dir / "index.html")
+        if tab_slug:
+            return f"{href}#index-panel-{tab_slug}"
+        return href
+
+    def _index_back_link(self, from_path: Path, tab_slug: str | None = None) -> str:
+        href = self._index_href(from_path, tab_slug)
+        return f"<div class=\"topnav\"><a href=\"{href}\">Retour a l'index</a></div>"
