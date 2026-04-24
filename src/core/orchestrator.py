@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.analyzer.engine import AnalyzerEngine
+from src.analyzer.rule_catalog import RuleCatalog
 from src.core.models import PmdViolation
 from src.parsers.salesforce_parser import SalesforceMetadataParser
 from src.core.pmd_service import PmdService
@@ -21,6 +23,7 @@ class SalesforceDocumentationGenerator:
         generate_excels: bool = True,
         scoring_weights: dict[str, int] | None = None,
         adopt_adapt_weights: dict[str, int] | None = None,
+        analyzer_rules_path: str | Path | None = None,
         log_callback=None,
     ) -> None:
         self.source_dir = Path(source_dir).resolve()
@@ -33,6 +36,9 @@ class SalesforceDocumentationGenerator:
         self.generate_excels = generate_excels
         self.scoring_weights = scoring_weights
         self.adopt_adapt_weights = adopt_adapt_weights
+        self.analyzer_rules_path = (
+            Path(analyzer_rules_path).resolve() if analyzer_rules_path else None
+        )
         self.log = log_callback or (lambda message: None)
 
     def _safe_excel(self, label: str, producer):
@@ -121,10 +127,34 @@ class SalesforceDocumentationGenerator:
                     ),
                 )
 
-        object_pages = html_writer.write_object_pages(snapshot)
-        apex_pages = html_writer.write_apex_pages(snapshot, apex_reviews, pmd_by_artifact)
-        flow_pages = html_writer.write_flow_pages(snapshot, flow_reviews, object_pages, apex_pages)
-        omni_pages = html_writer.write_omni_pages(snapshot)
+        self.log("Chargement du catalogue de regles analyzer.")
+        analyzer_catalog = RuleCatalog.load(self.analyzer_rules_path)
+        enabled_count = len(analyzer_catalog.enabled)
+        total_count = len(analyzer_catalog.all)
+        self.log(
+            f"Catalogue analyzer : {enabled_count}/{total_count} regles actives."
+        )
+        analyzer_engine = AnalyzerEngine(analyzer_catalog)
+        analyzer_report = analyzer_engine.analyze_snapshot(snapshot)
+        finding_total = len(analyzer_report.all_findings())
+        self.log(f"Analyseur : {finding_total} finding(s) detecte(s).")
+
+        object_pages = html_writer.write_object_pages(
+            snapshot, analyzer_report=analyzer_report
+        )
+        apex_pages = html_writer.write_apex_pages(
+            snapshot, apex_reviews, pmd_by_artifact, analyzer_report=analyzer_report
+        )
+        flow_pages = html_writer.write_flow_pages(
+            snapshot,
+            flow_reviews,
+            object_pages,
+            apex_pages,
+            analyzer_report=analyzer_report,
+        )
+        omni_pages = html_writer.write_omni_pages(
+            snapshot, analyzer_report=analyzer_report
+        )
         excel_preview_pages = html_writer.write_excel_preview_pages()
         index_path = html_writer.write_index(
             snapshot,
@@ -135,6 +165,7 @@ class SalesforceDocumentationGenerator:
             flow_reviews,
             pmd_by_artifact,
             omni_pages=omni_pages,
+            analyzer_report=analyzer_report,
         )
 
         self.log("Generation terminee.")
@@ -150,4 +181,5 @@ class SalesforceDocumentationGenerator:
             "flow_pages": flow_pages,
             "omni_pages": omni_pages,
             "excel_preview_pages": excel_preview_pages,
+            "analyzer_report": analyzer_report,
         }

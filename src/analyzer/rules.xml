@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Catalogue de regles d'analyse statique pour les metadonnees Salesforce.
+  Inspire de :
+    - PMD Apex (https://docs.pmd-code.org/latest/pmd_rules_apex.html)
+    - Salesforce Well-Architected (https://architect.salesforce.com/docs/architect/well-architected/guide/overview.html)
+    - Patterns & Anti-Patterns Explorer (https://architect.salesforce.com/docs/architect/well-architected-tools/guide/patterns)
+    - Architect Decision Guides (https://architect.salesforce.com/decision-guides)
+    - Salesforce Admins (https://admin.salesforce.com/)
+
+  Chaque regle expose :
+    - id           identifiant unique
+    - enabled      true/false (active ou desactive la regle)
+    - scope        composant cible (apex_class, apex_trigger, flow, object, field, validation_rule, omni_data_transform, omni)
+    - category     pilier Well-Architected : Trusted, Easy, Adaptable
+    - subcategory  theme fin (Secure, Reliable, Maintainability, Readability, Efficiency, Resilient, Composable, ...)
+    - severity     Critical, Major, Minor, Info
+    - source       source principale de la regle
+    - reference    URL de reference (documentation Salesforce ou PMD)
+    - title        intitule court
+    - description  ce que la regle verifie
+    - rationale    pourquoi la regle est importante (contexte metier / architecture)
+    - remediation  comment corriger (piste concrete)
+-->
+<rules version="1.0">
+
+  <!-- ==================== APEX CLASSES ==================== -->
+
+  <rule id="APEX-SEC-001" enabled="true" scope="apex_class" category="Trusted" subcategory="Secure"
+        severity="Critical" source="PMD ApexSharingViolations + Well-Architected Data Security"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/trusted-data-security">
+    <title>Classe Apex sans declaration de partage explicite</title>
+    <description>Detecte une classe non-test qui ne declare ni 'with sharing', ni 'without sharing', ni 'inherited sharing'.</description>
+    <rationale>
+      Une classe sans declaration de partage herite par defaut des regles de l'appelant,
+      ce qui introduit un risque d'exposition de donnees. Le pilier Trusted du Well-Architected
+      Framework recommande un controle d'acces explicite aux donnees.
+    </rationale>
+    <remediation>Ajouter 'with sharing' (ou 'inherited sharing' quand le contexte appelant doit etre respecte) sur la declaration de la classe.</remediation>
+  </rule>
+
+  <rule id="APEX-SEC-002" enabled="true" scope="apex_class" category="Trusted" subcategory="Secure"
+        severity="Major" source="PMD AvoidHardcodingId"
+        reference="https://docs.pmd-code.org/latest/pmd_rules_apex_errorprone.html#avoidhardcodingid">
+    <title>Identifiant Salesforce code en dur</title>
+    <description>Detecte la presence d'un Id Salesforce 15/18 caracteres ecrit en dur dans le code.</description>
+    <rationale>
+      Les Ids differencient les environnements. Un Id code en dur provoque des regressions lors
+      des deploiements Sandbox -> Production et nuit a la portabilite du code.
+    </rationale>
+    <remediation>Externaliser l'identifiant dans une Custom Metadata, un Custom Setting ou un label, et le resoudre a l'execution.</remediation>
+  </rule>
+
+  <rule id="APEX-REL-001" enabled="true" scope="apex_class" category="Trusted" subcategory="Reliable"
+        severity="Major" source="Well-Architected Reliable + PMD ExceptionHandling"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/reliable">
+    <title>Aucun try/catch autour de traitements DML ou SOQL</title>
+    <description>La classe contient au moins un DML ou SOQL mais aucun bloc try/catch n'est detecte.</description>
+    <rationale>
+      Un composant fiable protege l'utilisateur des erreurs techniques. Sans gestion d'exception,
+      une erreur DMLException ou QueryException provoque une trace brute et potentiellement une
+      transaction incoherente pour l'utilisateur final.
+    </rationale>
+    <remediation>Encadrer les acces aux donnees avec try/catch, logger l'erreur via un service de logs et renvoyer un message lisible a l'appelant.</remediation>
+  </rule>
+
+  <rule id="APEX-PERF-001" enabled="true" scope="apex_class" category="Easy" subcategory="Efficiency"
+        severity="Critical" source="PMD OperationWithLimitsInLoop"
+        reference="https://docs.pmd-code.org/latest/pmd_rules_apex_performance.html#operationwithlimitsinloop">
+    <title>SOQL potentiellement execute dans une boucle</title>
+    <description>Une requete SOQL apparait dans une boucle 'for' ou 'while', ce qui epuise rapidement les gouverneurs.</description>
+    <rationale>
+      Les limites Apex (100 SOQL/transaction) sont un plafond strict. Un SOQL dans une boucle
+      atteint la limite en quelques iterations et fait echouer la transaction.
+    </rationale>
+    <remediation>Extraire la requete de la boucle et bulkifier le traitement (SOQL unique qui retourne une collection, traitee ensuite en memoire).</remediation>
+  </rule>
+
+  <rule id="APEX-PERF-002" enabled="true" scope="apex_class" category="Easy" subcategory="Efficiency"
+        severity="Critical" source="PMD OperationWithLimitsInLoop"
+        reference="https://docs.pmd-code.org/latest/pmd_rules_apex_performance.html#operationwithlimitsinloop">
+    <title>DML potentiellement execute dans une boucle</title>
+    <description>Une instruction DML (insert, update, upsert, delete) apparait dans une boucle.</description>
+    <rationale>
+      Les limites DML (150 statements/transaction) plafonnent le nombre d'iterations. C'est un
+      anti-pattern reconnu du Well-Architected Framework (pilier Easy > Efficiency).
+    </rationale>
+    <remediation>Accumuler les enregistrements dans une List puis executer un seul DML apres la boucle.</remediation>
+  </rule>
+
+  <rule id="APEX-MAINT-001" enabled="true" scope="apex_class" category="Easy" subcategory="Maintainability"
+        severity="Minor" source="PMD ExcessiveClassLength"
+        reference="https://docs.pmd-code.org/latest/pmd_rules_apex_design.html#excessiveclasslength">
+    <title>Classe Apex trop longue</title>
+    <description>Classe depassant 500 lignes, seuil propose par PMD pour les composants Apex.</description>
+    <rationale>
+      Une classe longue melange souvent plusieurs responsabilites et complique la lecture,
+      les tests et les evolutions (Easy > Readability + Adaptable > Separation of Concerns).
+    </rationale>
+    <remediation>Scinder la classe en composants specialises (service, selector, domain, helper) selon le pattern Separation of Concerns.</remediation>
+  </rule>
+
+  <rule id="APEX-MAINT-002" enabled="true" scope="apex_class" category="Easy" subcategory="Readability"
+        severity="Minor" source="PMD CommentDensity"
+        reference="https://docs.pmd-code.org/latest/pmd_rules_apex_documentation.html#commentdensity">
+    <title>Densite de commentaires faible</title>
+    <description>Moins de 5% de lignes commentees sur une classe depassant 80 lignes.</description>
+    <rationale>
+      La lisibilite est un attribut cle du pilier Easy. Une classe metier moyenne doit presenter
+      les intentions (pourquoi) plus que la mecanique (comment).
+    </rationale>
+    <remediation>Ajouter un en-tete de classe (but, inputs, side effects) et commenter les passages non triviaux (algorithmes, regles metier).</remediation>
+  </rule>
+
+  <rule id="APEX-MAINT-003" enabled="true" scope="apex_class" category="Easy" subcategory="Readability"
+        severity="Minor" source="PMD AvoidDebugStatements"
+        reference="https://docs.pmd-code.org/latest/pmd_rules_apex_bestpractices.html#debugsshouldusel">
+    <title>Trop de System.debug non nettoyes</title>
+    <description>Plus de 10 appels 'System.debug' dans la classe.</description>
+    <rationale>
+      Les traces System.debug degradent les performances et polluent les logs en production.
+      Well-Architected pilier Trusted > Reliable recommande un dispositif de logs maitrise.
+    </rationale>
+    <remediation>Remplacer par un logger centralise activable via Custom Setting ou Custom Metadata; supprimer les traces residuelles.</remediation>
+  </rule>
+
+  <!-- ==================== APEX TRIGGERS ==================== -->
+
+  <rule id="TRIG-MAINT-001" enabled="true" scope="apex_trigger" category="Adaptable" subcategory="Composable"
+        severity="Major" source="PMD AvoidLogicInTrigger + Apex Trigger Pattern"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/adaptable-separation-of-concerns">
+    <title>Logique metier directement dans le trigger</title>
+    <description>Le trigger contient plus de 10 lignes non-commentaire ou des DML/SOQL inline.</description>
+    <rationale>
+      Le pattern Separation of Concerns (pilier Adaptable) recommande un Trigger Handler dedie.
+      Un trigger qui porte la logique devient impossible a re-orchestrer ou tester unitairement.
+    </rationale>
+    <remediation>Appliquer un framework Trigger Handler (fflib, TriggerHandler, ou maison) et deplacer toute la logique dans la classe handler.</remediation>
+  </rule>
+
+  <rule id="TRIG-PERF-001" enabled="true" scope="apex_trigger" category="Easy" subcategory="Efficiency"
+        severity="Critical" source="PMD OperationWithLimitsInLoop"
+        reference="https://docs.pmd-code.org/latest/pmd_rules_apex_performance.html#operationwithlimitsinloop">
+    <title>SOQL ou DML dans une boucle du trigger</title>
+    <description>Le trigger realise des operations de donnees au sein d'une boucle.</description>
+    <rationale>
+      Les triggers sont invoques en mode bulk (jusqu'a 200 enregistrements). Une operation dans
+      une boucle epuise les limites des la premiere chaine de creation massive.
+    </rationale>
+    <remediation>Bulkifier : collecter les Ids / enregistrements dans des Maps et effectuer une requete ou un DML unique.</remediation>
+  </rule>
+
+  <!-- ==================== FLOW ==================== -->
+
+  <rule id="FLOW-READ-001" enabled="true" scope="flow" category="Easy" subcategory="Readability"
+        severity="Minor" source="Well-Architected Easy Readability + Admin Best Practices"
+        reference="https://admin.salesforce.com/">
+    <title>Flow sans description globale</title>
+    <description>Le flow ne fournit pas de description au niveau metadata.</description>
+    <rationale>
+      Un flow sans description est difficile a reprendre. Les guides Salesforce Admins insistent
+      sur la documentation immediate des automatisations (intention, declencheur, perimetre).
+    </rationale>
+    <remediation>Renseigner la description du flow : intention, declencheur, consequences sur les donnees, proprietaire.</remediation>
+  </rule>
+
+  <rule id="FLOW-READ-002" enabled="true" scope="flow" category="Easy" subcategory="Readability"
+        severity="Minor" source="Well-Architected Easy Readability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-readability">
+    <title>Taux d'elements decrits inferieur a 50%</title>
+    <description>Moins d'un element de flow sur deux porte une description.</description>
+    <rationale>
+      Un flow lisible garde chaque element auto-descriptif. C'est un pattern explicite du pilier Easy.
+    </rationale>
+    <remediation>Ajouter une description sur les elements cles (decisions, actions, subflows) pour expliciter le 'pourquoi'.</remediation>
+  </rule>
+
+  <rule id="FLOW-MAINT-001" enabled="true" scope="flow" category="Easy" subcategory="Maintainability"
+        severity="Major" source="Well-Architected Easy Maintainability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-maintainability">
+    <title>Flow volumineux</title>
+    <description>Flow comportant plus de 40 elements.</description>
+    <rationale>
+      Un flow volumineux devient un point de maintenance unique et fragile. Le pattern recommande
+      un decoupage en sous-flows reutilisables (Adaptable > Composable).
+    </rationale>
+    <remediation>Extraire les sequences cohesives dans des sous-flows nommes; documenter chaque sous-flow individuellement.</remediation>
+  </rule>
+
+  <rule id="FLOW-MAINT-002" enabled="true" scope="flow" category="Easy" subcategory="Maintainability"
+        severity="Minor" source="Well-Architected Easy Maintainability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-maintainability">
+    <title>Trop de decisions dans le flow</title>
+    <description>Plus de 8 decisions dans un seul flow.</description>
+    <rationale>
+      Un fort branchement complique la couverture fonctionnelle et les tests. Well-Architected
+      recommande de factoriser les regles en Decision Tables ou Custom Metadata-driven.
+    </rationale>
+    <remediation>Remplacer certaines cascades de decisions par des Decision Tables / Custom Metadata, ou scinder le flow.</remediation>
+  </rule>
+
+  <rule id="FLOW-PERF-001" enabled="true" scope="flow" category="Easy" subcategory="Efficiency"
+        severity="Major" source="Well-Architected Easy Efficiency"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-efficiency">
+    <title>Beaucoup d'operations de donnees</title>
+    <description>Plus de 6 operations recordCreate/recordUpdate/recordDelete/recordLookup.</description>
+    <rationale>
+      Chaque operation de donnees consomme des limites. Un flow qui enchaine les DML risque
+      d'echec en transaction et degrade l'experience utilisateur.
+    </rationale>
+    <remediation>Regrouper les operations (Collections + Update Records), ou deleguer a de l'Apex bulkifie pour les traitements complexes.</remediation>
+  </rule>
+
+  <rule id="FLOW-MAINT-003" enabled="true" scope="flow" category="Easy" subcategory="Maintainability"
+        severity="Minor" source="Well-Architected Easy Maintainability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-maintainability">
+    <title>Profondeur d'imbrication excessive</title>
+    <description>Le flow presente une profondeur superieure a 4.</description>
+    <rationale>
+      Au-dela de 4 niveaux d'imbrication, le suivi visuel et la maintenance deviennent difficiles.
+    </rationale>
+    <remediation>Aplatir la structure en scindant les branches profondes en sous-flows nommes.</remediation>
+  </rule>
+
+  <rule id="FLOW-ADAPT-001" enabled="true" scope="flow" category="Adaptable" subcategory="Resilient"
+        severity="Info" source="Well-Architected Adaptable Lifecycle"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/adaptable-application-lifecycle-management">
+    <title>Flow inactif present dans le package</title>
+    <description>Le flow n'est pas a l'etat 'Active'.</description>
+    <rationale>
+      Les flows inactifs alourdissent le package et peuvent reveler une migration inachevee.
+    </rationale>
+    <remediation>Activer le flow s'il est utilise, ou le supprimer / archiver s'il ne sert plus.</remediation>
+  </rule>
+
+  <!-- ==================== OBJECTS ==================== -->
+
+  <rule id="OBJ-READ-001" enabled="true" scope="object" category="Easy" subcategory="Readability"
+        severity="Minor" source="Well-Architected Easy Readability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-readability">
+    <title>Objet personnalise sans description</title>
+    <description>Un objet custom ne dispose d'aucune description au niveau metadata.</description>
+    <rationale>
+      Les objets metier sont la colonne vertebrale du modele. Sans description, les developpeurs
+      et admins n'ont aucun point d'entree pour comprendre leur role.
+    </rationale>
+    <remediation>Renseigner la description de l'objet : role fonctionnel, granularite, relations principales.</remediation>
+  </rule>
+
+  <rule id="OBJ-ADAPT-001" enabled="true" scope="object" category="Adaptable" subcategory="Resilient"
+        severity="Minor" source="Well-Architected Adaptable Resilient"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/resilient">
+    <title>Objet avec un grand nombre de champs personnalises</title>
+    <description>Plus de 50 champs custom sur un seul objet.</description>
+    <rationale>
+      Un objet surcharge signale souvent un manque de normalisation. Le Decision Guide Salesforce
+      recommande d'envisager un eclatement (sous-objet, objet referentiel) pour garder l'agilite.
+    </rationale>
+    <remediation>Evaluer un decoupage en objets satellites ou l'utilisation de Custom Metadata pour les donnees de reference.</remediation>
+  </rule>
+
+  <rule id="OBJ-MAINT-001" enabled="true" scope="object" category="Easy" subcategory="Maintainability"
+        severity="Minor" source="Salesforce Admins Best Practices"
+        reference="https://admin.salesforce.com/">
+    <title>Beaucoup de validation rules sur l'objet</title>
+    <description>Plus de 10 validation rules actives sur le meme objet.</description>
+    <rationale>
+      Un objet sature de validation rules complique le diagnostic des erreurs utilisateur et
+      le debogage. Considerer Regles Duplication + Custom Metadata + Flows ecran.
+    </rationale>
+    <remediation>Consolider les regles similaires, factoriser via Custom Metadata ou Flows avant sauvegarde quand pertinent.</remediation>
+  </rule>
+
+  <rule id="OBJ-MAINT-002" enabled="true" scope="object" category="Easy" subcategory="Maintainability"
+        severity="Info" source="Well-Architected Easy Maintainability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-maintainability">
+    <title>Plusieurs record types actifs</title>
+    <description>Plus de 3 record types actifs sur le meme objet.</description>
+    <rationale>
+      Les record types multiples facilitent la segmentation mais demultiplient les configurations
+      (layouts, picklists, permissions). Surveiller le ROI de chacun.
+    </rationale>
+    <remediation>Documenter le role de chaque record type; fusionner ceux qui convergent.</remediation>
+  </rule>
+
+  <!-- ==================== FIELDS ==================== -->
+
+  <rule id="FIELD-READ-001" enabled="true" scope="field" category="Easy" subcategory="Readability"
+        severity="Minor" source="Well-Architected Easy Readability + Admins Best Practices"
+        reference="https://admin.salesforce.com/">
+    <title>Champ personnalise sans description</title>
+    <description>Un champ custom (__c) ne porte ni description ni help text.</description>
+    <rationale>
+      Les champs sans metadata textuelle freinent la gouvernance et l'adoption utilisateur.
+      Salesforce Admins recommande systematiquement description + help text pour chaque champ custom.
+    </rationale>
+    <remediation>Ajouter une description technique et un help text fonctionnel pour chaque champ custom.</remediation>
+  </rule>
+
+  <!-- ==================== VALIDATION RULES ==================== -->
+
+  <rule id="VR-READ-001" enabled="true" scope="validation_rule" category="Easy" subcategory="Readability"
+        severity="Minor" source="Well-Architected Easy Readability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-readability">
+    <title>Validation rule sans description</title>
+    <description>La validation rule ne fournit pas de description.</description>
+    <rationale>
+      Sans description, il est impossible de comprendre la regle metier que la validation protege.
+    </rationale>
+    <remediation>Decrire en une phrase la regle metier et l'erreur utilisateur correspondante.</remediation>
+  </rule>
+
+  <rule id="VR-MAINT-001" enabled="true" scope="validation_rule" category="Easy" subcategory="Maintainability"
+        severity="Minor" source="Well-Architected Easy Maintainability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-maintainability">
+    <title>Formule de validation tres longue</title>
+    <description>La formule comporte plus de 500 caracteres ou plus de 8 operateurs logiques (AND/OR/NOT/IF).</description>
+    <rationale>
+      Une formule tentaculaire devient difficile a tester et a faire evoluer. Elle gagne a etre
+      factorisee dans des formules intermediaires ou Custom Metadata.
+    </rationale>
+    <remediation>Decomposer en champs formules intermediaires, en Custom Metadata ou deplacer la regle dans un Flow / Apex si elle porte de la logique complexe.</remediation>
+  </rule>
+
+  <!-- ==================== OMNISTUDIO ==================== -->
+
+  <rule id="OMNI-READ-001" enabled="true" scope="omni_data_transform" category="Easy" subcategory="Readability"
+        severity="Minor" source="Well-Architected Easy Readability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-readability">
+    <title>Data Transform sans description</title>
+    <description>Le composant OmniStudio Data Transform ne porte pas de description.</description>
+    <rationale>
+      Les Data Transforms enchainent Extract / Transform / Load. Sans description, impossible
+      de saisir leur role dans une chaine OmniScript / Integration Procedure.
+    </rationale>
+    <remediation>Ajouter une description : finalite metier, inputs attendus, outputs produits.</remediation>
+  </rule>
+
+  <rule id="OMNI-MAINT-001" enabled="true" scope="omni_data_transform" category="Easy" subcategory="Maintainability"
+        severity="Minor" source="Well-Architected Easy Maintainability"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/easy-maintainability">
+    <title>Items Data Transform desactives non nettoyes</title>
+    <description>Plus de 3 omniDataTransformItem desactives persistent dans la definition.</description>
+    <rationale>
+      Les items desactives alourdissent la definition et trompent le lecteur. Ils doivent etre
+      supprimes ou documentes.
+    </rationale>
+    <remediation>Supprimer les items devenus inutiles, ou documenter la raison de leur conservation.</remediation>
+  </rule>
+
+  <rule id="OMNI-ADAPT-001" enabled="true" scope="omni_data_transform" category="Adaptable" subcategory="Resilient"
+        severity="Info" source="Well-Architected Adaptable Composable"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/composable">
+    <title>Data Transform volumineux</title>
+    <description>Plus de 40 omniDataTransformItem dans un seul Data Transform.</description>
+    <rationale>
+      Un Data Transform monolithique devient difficile a tester et a faire evoluer. Le pattern
+      Composable suggere un decoupage par domaine ou sous-flux.
+    </rationale>
+    <remediation>Decouper en plusieurs Data Transforms enchaines par une Integration Procedure; reutiliser des blocs par objet cible.</remediation>
+  </rule>
+
+</rules>

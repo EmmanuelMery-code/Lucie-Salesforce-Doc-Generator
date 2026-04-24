@@ -32,6 +32,13 @@ flows/
 assets/
 index.html
 
+# Local project backups and retrieved Salesforce metadata (never committed)
+backup/
+mh*Cap*/
+
+# Reference CSV imported from external tooling (not used at runtime)
+static_code_analysis_rules.csv
+
 # OS / editor
 .DS_Store
 Thumbs.db

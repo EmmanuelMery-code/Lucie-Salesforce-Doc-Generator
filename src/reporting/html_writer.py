@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import xml.etree.ElementTree as ET
 from pathlib import Path
 import re
 
+from src.analyzer.models import Finding
 from src.core.models import (
     ApexArtifact,
     FlowInfo,
@@ -15,8 +17,23 @@ from src.core.models import (
     SecurityArtifact,
     ValidationRuleInfo,
 )
-from src.core.utils import html_value, safe_slug, write_text
+from src.core.utils import SF_NS, child_text, html_value, safe_slug, write_text
 from src.reporting.formula_parser import FormulaNode, parse_formula
+
+
+SEVERITY_CSS_CLASS: dict[str, str] = {
+    "Critical": "sev-critical",
+    "Major": "sev-major",
+    "Minor": "sev-minor",
+    "Info": "sev-info",
+}
+
+SEVERITY_LABEL: dict[str, str] = {
+    "Critical": "Critique",
+    "Major": "Majeur",
+    "Minor": "Mineur",
+    "Info": "Info",
+}
 
 
 MERMAID_RUNTIME_SCRIPT = r"""
@@ -280,6 +297,37 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 .dependency-graph { height: 440px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; }
 .graph-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 12px; }
 .graph-legend .item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+.findings-summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+.findings-summary .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 0.85rem; border: 1px solid #cbd5e1; background: white; color: #1e293b; }
+.findings-summary .chip strong { font-weight: 700; }
+.findings-summary .chip.sev-critical { background: #fef2f2; border-color: #f87171; color: #991b1b; }
+.findings-summary .chip.sev-major { background: #fff7ed; border-color: #fb923c; color: #9a3412; }
+.findings-summary .chip.sev-minor { background: #fefce8; border-color: #eab308; color: #854d0e; }
+.findings-summary .chip.sev-info { background: #eff6ff; border-color: #60a5fa; color: #1e3a8a; }
+.findings-list { list-style: none; padding: 0; margin: 0; background: white; border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; }
+.findings-list li.finding { padding: 14px 18px; border-top: 1px solid #e2e8f0; }
+.findings-list li.finding:first-child { border-top: none; }
+.findings-list li.finding .head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 6px; }
+.findings-list li.finding .title { font-weight: 700; color: #0f172a; }
+.findings-list li.finding .rule-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; color: #475569; }
+.findings-list li.finding .sev-badge { display: inline-block; font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.02em; }
+.findings-list li.finding .sev-badge.sev-critical { background: #fee2e2; color: #991b1b; }
+.findings-list li.finding .sev-badge.sev-major { background: #ffedd5; color: #9a3412; }
+.findings-list li.finding .sev-badge.sev-minor { background: #fef9c3; color: #854d0e; }
+.findings-list li.finding .sev-badge.sev-info { background: #dbeafe; color: #1e3a8a; }
+.findings-list li.finding .category-badge { display: inline-block; font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: #e2e8f0; color: #334155; letter-spacing: 0.02em; }
+.findings-list li.finding .message { margin: 2px 0 6px; color: #1e293b; }
+.findings-list li.finding .metadata { font-size: 0.85rem; color: #475569; margin: 4px 0; }
+.findings-list li.finding .metadata dt { font-weight: 600; color: #0f172a; float: left; margin-right: 6px; }
+.findings-list li.finding .metadata dd { margin: 0 0 4px; }
+.findings-list li.finding .metadata a { color: #1d4ed8; }
+.findings-list li.finding ul.details { margin: 6px 0 0; padding-left: 18px; }
+.findings-list li.finding ul.details li { list-style: disc; color: #334155; }
+.analyzer-summary-card { background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px 22px; margin: 12px 0; }
+.analyzer-summary-card h3 { margin-top: 0; }
+.analyzer-summary-card table { width: 100%; border: none; background: transparent; border-collapse: collapse; }
+.analyzer-summary-card table th, .analyzer-summary-card table td { border: none; background: transparent; padding: 6px 10px; }
+.analyzer-summary-card table tbody tr:nth-child(even) td { background: #f1f5f9; }
 .graph-legend .dot { width: 12px; height: 12px; border-radius: 999px; border: 1px solid #64748b; display: inline-block; }
 .tabs { background: white; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
 .tab-buttons { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; border-bottom: 1px solid #cbd5e1; background: #f8fafc; }
@@ -290,11 +338,28 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         """.strip()
         write_text(self.assets_dir / "style.css", style)
 
-    def write_object_pages(self, snapshot: MetadataSnapshot) -> dict[str, Path]:
+    def write_object_pages(
+        self,
+        snapshot: MetadataSnapshot,
+        *,
+        analyzer_report=None,
+    ) -> dict[str, Path]:
         output: dict[str, Path] = {}
+        object_findings = getattr(analyzer_report, "objects", {}) if analyzer_report else {}
+        validation_findings = getattr(analyzer_report, "validation_rules", {}) if analyzer_report else {}
         for item in snapshot.objects:
             path = self.objects_dir / f"{item.api_name}.html"
-            content = self._render_object_page(item, snapshot, path)
+            vr_findings_for_object: list[Finding] = []
+            for vr in item.validation_rules:
+                key = f"{item.api_name}.{vr.full_name}"
+                vr_findings_for_object.extend(validation_findings.get(key, []))
+            content = self._render_object_page(
+                item,
+                snapshot,
+                path,
+                object_findings.get(item.api_name, []),
+                vr_findings_for_object,
+            )
             write_text(path, content)
             output[item.api_name] = path
         self.log(f"{len(output)} page(s) objet generee(s).")
@@ -305,6 +370,8 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         snapshot: MetadataSnapshot,
         reviews: dict[str, ReviewResult],
         pmd_results: dict[str, list[PmdViolation]],
+        *,
+        analyzer_report=None,
     ) -> dict[str, Path]:
         artifacts = snapshot.apex_artifacts
         output: dict[str, Path] = {}
@@ -316,6 +383,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         trigger_objects = {artifact.name: self._trigger_object_name(artifact) for artifact in artifacts}
         object_names = [item.api_name for item in snapshot.objects]
         flow_names = [item.name for item in snapshot.flows]
+        apex_findings = getattr(analyzer_report, "apex", {}) if analyzer_report else {}
         for artifact in artifacts:
             path = output[artifact.name]
             dependencies = self._apex_dependencies(
@@ -335,6 +403,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                     output,
                     dependencies,
                     pmd_results.get(artifact.name, []),
+                    apex_findings.get(artifact.name, []),
                 ),
             )
         self.log(f"{len(output)} page(s) Apex/Trigger generee(s).")
@@ -346,6 +415,8 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         reviews: dict[str, ReviewResult],
         object_pages: dict[str, Path],
         apex_pages: dict[str, Path],
+        *,
+        analyzer_report=None,
     ) -> dict[str, Path]:
         flows = snapshot.flows
         output: dict[str, Path] = {}
@@ -362,6 +433,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         flow_ref_index = self._build_flow_reference_index(flows, flow_bodies)
         object_names = [item.api_name for item in snapshot.objects]
         apex_names = [item.name for item in snapshot.apex_artifacts]
+        flow_findings = getattr(analyzer_report, "flows", {}) if analyzer_report else {}
 
         for flow in flows:
             path = output[flow.name]
@@ -382,6 +454,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                     output,
                     object_pages,
                     apex_pages,
+                    flow_findings.get(flow.name, []),
                 ),
             )
         self.log(f"{len(output)} page(s) Flow generee(s).")
@@ -395,9 +468,13 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
     }
 
     def write_omni_pages(
-        self, snapshot: MetadataSnapshot
+        self,
+        snapshot: MetadataSnapshot,
+        *,
+        analyzer_report=None,
     ) -> dict[str, list[dict[str, object]]]:
         rows = snapshot.inventory.get("omnistudio") or []
+        dt_findings = getattr(analyzer_report, "data_transforms", {}) if analyzer_report else {}
         grouped: dict[str, list[dict[str, object]]] = {}
         for row in rows:
             subcategory_raw = str(row.get("Dossier") or "").strip()
@@ -430,6 +507,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                     row=row,
                     snapshot=snapshot,
                     current_path=page_path,
+                    findings=dt_findings.get(name, []),
                 )
                 write_text(page_path, content)
                 entries.append(
@@ -456,6 +534,8 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         flow_reviews: dict[str, ReviewResult],
         pmd_results: dict[str, list[PmdViolation]],
         omni_pages: dict[str, list[dict[str, object]]] | None = None,
+        *,
+        analyzer_report=None,
     ) -> Path:
         path = self.output_dir / "index.html"
         write_text(
@@ -470,12 +550,22 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                 pmd_results,
                 path,
                 omni_pages or {},
+                analyzer_report,
             ),
         )
         self.log(f"Index genere: {path}")
         return path
 
-    def _render_object_page(self, item: ObjectInfo, snapshot: MetadataSnapshot, current_path: Path) -> str:
+    def _render_object_page(
+        self,
+        item: ObjectInfo,
+        snapshot: MetadataSnapshot,
+        current_path: Path,
+        object_findings: list[Finding] | None = None,
+        validation_findings: list[Finding] | None = None,
+    ) -> str:
+        object_findings = object_findings or []
+        validation_findings = validation_findings or []
         profiles = self._security_rows(snapshot.profiles, item.api_name)
         permsets = self._security_rows(snapshot.permission_sets, item.api_name)
         fields_rows = "".join(
@@ -535,16 +625,28 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         profile_rows = self._render_security_rows(profiles, "Aucun profil avec acces detecte.")
         permset_rows = self._render_security_rows(permsets, "Aucun permission set avec acces detecte.")
 
+        combined_findings = list(object_findings) + list(validation_findings)
+        analyzer_summary_inline = self._render_findings_summary(combined_findings)
+        analyzer_content = self._render_analyzer_tab(combined_findings)
+
+        synthesis_html = (
+            "<ul>" + description_html + "</ul>"
+            + "<div class='section'><h3>Alertes analyseur</h3>"
+            + analyzer_summary_inline
+            + "</div>"
+        )
+
         tabs = self._tabbed_sections(
             f"object-{safe_slug(item.api_name)}",
             [
-                ("Synthese", "<ul>" + description_html + "</ul>"),
+                ("Synthese", synthesis_html),
                 ("Fields", f"<table><thead><tr><th>Name</th><th>Label</th><th>Type</th><th>Description</th><th>Required</th></tr></thead><tbody>{fields_rows}</tbody></table>"),
                 ("Profiles", f"<table><thead><tr><th>Profile</th><th>Lecture</th><th>Creation</th><th>Modification</th><th>Suppression</th><th>Nb champs visibles</th><th>Nb champs modifiables</th></tr></thead><tbody>{profile_rows}</tbody></table>"),
                 ("Permission Sets", f"<table><thead><tr><th>Permission Set</th><th>Lecture</th><th>Creation</th><th>Modification</th><th>Suppression</th><th>Nb champs visibles</th><th>Nb champs modifiables</th></tr></thead><tbody>{permset_rows}</tbody></table>"),
                 ("Record Types", f"<table><thead><tr><th>Nom</th><th>Label</th><th>Description</th><th>Actif</th></tr></thead><tbody>{record_type_rows}</tbody></table>"),
                 ("Validation Rules", f"<table><thead><tr><th>Nom</th><th>Actif</th><th>Description</th><th>Champ d'erreur</th><th>Message d'erreur</th></tr></thead><tbody>{validation_rows}</tbody></table><hr/>{validation_content}"),
                 ("Relations", f"{mermaid}<table><thead><tr><th>Champ</th><th>Type</th><th>Cible</th></tr></thead><tbody>{relation_table}</tbody></table>"),
+                ("Analyseur", analyzer_content),
             ],
         )
         body = f"""
@@ -568,24 +670,36 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         apex_pages: dict[str, Path],
         dependencies: list[dict[str, str]],
         pmd_violations: list[PmdViolation],
+        findings: list[Finding] | None = None,
     ) -> str:
+        findings = findings or []
         metrics = "".join(
             f"<li><strong>{html_value(label)}:</strong> {html_value(value)}</li>"
             for label, value in review.metrics
         )
+        improvements_for_heuristics = list(review.improvements) + self._findings_to_review_improvements(findings)
         positives = self._list_or_empty(review.positives, "Aucun point fort automatique detecte.")
-        improvements = self._list_or_empty(review.improvements, "Aucun point d'amelioration automatique detecte.")
+        improvements = self._list_or_empty(improvements_for_heuristics, "Aucun point d'amelioration automatique detecte.")
+        analyzer_tab = self._render_analyzer_tab(findings)
+        analyzer_inline_summary = self._render_findings_summary(findings)
         code_preview = "\n".join(artifact.body.splitlines()[:120])
         dependency_rows = self._render_apex_dependency_rows(dependencies, current_path, apex_pages)
         dependency_graph = self._render_apex_dependency_graph(artifact, dependencies)
         pmd_rows = self._render_pmd_rows(pmd_violations)
+        summary_html = (
+            f"<p>{html_value(review.summary)}</p>"
+            "<div class='section'><h3>Alertes analyseur</h3>"
+            + analyzer_inline_summary
+            + "</div>"
+        )
         tabs = self._tabbed_sections(
             f"apex-{safe_slug(artifact.name)}",
             [
-                ("Resume", f"<p>{html_value(review.summary)}</p>"),
+                ("Resume", summary_html),
                 ("Metriques", f"<ul>{metrics}</ul>"),
                 ("Points forts", positives),
-                ("Ameliorations", improvements),
+                ("Heuristiques", improvements),
+                ("Analyseur", analyzer_tab),
                 (
                     "PMD",
                     f"<table><thead><tr><th>Regle</th><th>Ruleset</th><th>Priorite</th><th>Ligne</th><th>Message</th></tr></thead><tbody>{pmd_rows}</tbody></table>",
@@ -615,7 +729,9 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         flow_pages: dict[str, Path],
         object_pages: dict[str, Path],
         apex_pages: dict[str, Path],
+        findings: list[Finding] | None = None,
     ) -> str:
+        findings = findings or []
         metrics = "".join(
             f"<li><strong>{html_value(label)}:</strong> {html_value(value)}</li>"
             for label, value in review.metrics
@@ -635,14 +751,24 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             {"Flow": flow_pages, "Objet": object_pages, "Apex": apex_pages},
         )
         relation_graph = self._render_component_dependency_graph(flow.name, "Flow", dependencies, safe_slug(flow.name))
+        analyzer_tab = self._render_analyzer_tab(findings)
+        analyzer_inline_summary = self._render_findings_summary(findings)
+        improvements_augmented = list(review.improvements) + self._findings_to_review_improvements(findings)
+        summary_html = (
+            f"<p>{html_value(review.summary)}</p>"
+            "<div class='section'><h3>Alertes analyseur</h3>"
+            + analyzer_inline_summary
+            + "</div>"
+        )
         tabs = self._tabbed_sections(
             f"flow-{safe_slug(flow.name)}",
             [
-                ("Resume", f"<p>{html_value(review.summary)}</p>"),
+                ("Resume", summary_html),
                 ("Metriques", f"<ul>{metrics}</ul>"),
                 ("Repartition", f"<table><thead><tr><th>Type</th><th>Nombre</th></tr></thead><tbody>{count_rows}</tbody></table>"),
                 ("Points forts", self._list_or_empty(review.positives, "Aucun point fort automatique detecte.")),
-                ("Ameliorations", self._list_or_empty(review.improvements, "Aucun point d'amelioration automatique detecte.")),
+                ("Heuristiques", self._list_or_empty(improvements_augmented, "Aucun point d'amelioration automatique detecte.")),
+                ("Analyseur", analyzer_tab),
                 (
                     "Relations",
                     f"<table><thead><tr><th>Composant lie</th><th>Categorie</th><th>Sous-type</th><th>Sens</th><th>Nature du lien</th></tr></thead><tbody>{relation_rows}</tbody></table>{relation_graph}",
@@ -676,7 +802,9 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         row: dict[str, object],
         snapshot: MetadataSnapshot,
         current_path: Path,
+        findings: list[Finding] | None = None,
     ) -> str:
+        findings = findings or []
         source_rel = str(row.get("Source") or "")
         file_type = str(row.get("TypeFichier") or "")
         category_label = str(row.get("Categorie") or "OmniStudio")
@@ -709,35 +837,83 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                     suffix = "\n..." if truncated else ""
                     preview_html = f"<pre>{html_value(preview_body + suffix)}</pre>"
 
-        msg_name = self._mermaid_label(name) or "Composant"
-        msg_type = self._mermaid_label(file_type) or "Type"
-        msg_sub = self._mermaid_label(subcategory) or "Sous-categorie"
-        msg_cat = self._mermaid_label(category_label) or "Categorie"
+        folder = str(row.get("Dossier") or "").lower()
+        is_data_transform = (
+            "omnidatatransform" in folder
+            or file_type.lower().endswith(".rpt-meta.xml")
+            or subcategory.lower().replace("-", " ").strip() == "data transforms"
+        )
 
-        diagram_lines = [
-            "flowchart LR",
-            f'    Comp["{msg_name}"]',
-            f'    Type["Type : {msg_type}"]',
-            f'    Sub["Sous-categorie : {msg_sub}"]',
-            f'    Cat["Categorie : {msg_cat}"]',
-            "    Comp --> Type",
-            "    Comp --> Sub",
-            "    Comp --> Cat",
-        ]
-        omni_diagram = "\n".join(diagram_lines)
-        wrapped = self._wrap_mermaid_block(omni_diagram)
-        mermaid_graph = (
-            "<div class=\"section\">"
-            "<h3>Representation Graphique (OmniStudio)</h3>"
-            f"{wrapped}"
-            "</div>"
+        data_transform_payload: tuple[str, dict[str, str]] | None = None
+        if is_data_transform and source_rel:
+            candidate = snapshot.source_dir / source_rel
+            if candidate.exists() and candidate.is_file():
+                try:
+                    xml_text = candidate.read_text(encoding="utf-8", errors="ignore")
+                except OSError:
+                    xml_text = ""
+                if xml_text:
+                    diagram_src = self._data_transform_mermaid(xml_text, name)
+                    if diagram_src:
+                        data_transform_payload = (
+                            diagram_src,
+                            self._data_transform_meta(xml_text),
+                        )
+
+        if data_transform_payload is not None:
+            diagram_src, dt_meta = data_transform_payload
+            wrapped = self._wrap_mermaid_block(diagram_src)
+            mermaid_graph = (
+                "<div class=\"section\">"
+                f"<h3>Transformation de donnees : {html_value(name)}</h3>"
+                "<p class='empty'>"
+                f"Type : <strong>{html_value(dt_meta.get('type') or 'Non renseigne')}</strong> - "
+                f"entrees <strong>{html_value(dt_meta.get('inputType') or '-')}</strong> "
+                f"=&gt; sorties <strong>{html_value(dt_meta.get('outputType') or '-')}</strong>"
+                "</p>"
+                f"{wrapped}"
+                "</div>"
+            )
+        else:
+            msg_name = self._mermaid_label(name) or "Composant"
+            msg_type = self._mermaid_label(file_type) or "Type"
+            msg_sub = self._mermaid_label(subcategory) or "Sous-categorie"
+            msg_cat = self._mermaid_label(category_label) or "Categorie"
+
+            diagram_lines = [
+                "flowchart LR",
+                f'    Comp["{msg_name}"]',
+                f'    Type["Type : {msg_type}"]',
+                f'    Sub["Sous-categorie : {msg_sub}"]',
+                f'    Cat["Categorie : {msg_cat}"]',
+                "    Comp --> Type",
+                "    Comp --> Sub",
+                "    Comp --> Cat",
+            ]
+            omni_diagram = "\n".join(diagram_lines)
+            wrapped = self._wrap_mermaid_block(omni_diagram)
+            mermaid_graph = (
+                "<div class=\"section\">"
+                "<h3>Representation Graphique (OmniStudio)</h3>"
+                f"{wrapped}"
+                "</div>"
+            )
+
+        analyzer_tab = self._render_analyzer_tab(findings)
+        analyzer_inline_summary = self._render_findings_summary(findings)
+        synthesis_html = (
+            f"<ul>{meta_html}</ul>"
+            "<div class='section'><h3>Alertes analyseur</h3>"
+            + analyzer_inline_summary
+            + "</div>"
         )
 
         tabs = self._tabbed_sections(
             f"omni-{safe_slug(subcategory)}-{safe_slug(name)}",
             [
-                ("Synthese", f"<ul>{meta_html}</ul>"),
+                ("Synthese", synthesis_html),
                 ("Graphique", mermaid_graph),
+                ("Analyseur", analyzer_tab),
                 ("Contenu", preview_html),
             ],
         )
@@ -761,6 +937,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         pmd_results: dict[str, list[PmdViolation]],
         current_path: Path,
         omni_pages: dict[str, list[dict[str, object]]],
+        analyzer_report=None,
     ) -> str:
         metrics = snapshot.metrics
         object_rows = "".join(
@@ -810,6 +987,13 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         )
         excel_links = self._render_excel_exports(current_path)
         omni_panel = self._render_index_omni_panel(omni_pages, current_path)
+        analyzer_panel = self._render_index_analyzer_panel(
+            analyzer_report,
+            current_path,
+            object_pages,
+            apex_pages,
+            flow_pages,
+        )
 
         tabs = self._tabbed_sections(
             "index",
@@ -843,6 +1027,10 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                     f"<table><thead><tr><th>Nom</th><th>Type</th><th>Complexite</th><th>Score</th><th>Elements</th><th>Documentes</th></tr></thead><tbody>{flow_rows}</tbody></table>",
                 ),
                 (
+                    "Analyseur",
+                    analyzer_panel,
+                ),
+                (
                     "Ameliorations",
                     f"<table><thead><tr><th>Type</th><th>Composant</th><th>Amelioration</th></tr></thead><tbody>{improvements_rows}</tbody></table>",
                 ),
@@ -858,6 +1046,14 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             + metrics.omni_ui_cards
             + metrics.omni_data_transforms
         )
+        findings_card = ""
+        findings_total = 0
+        if analyzer_report is not None:
+            findings_total = len(analyzer_report.all_findings())
+            findings_card = (
+                f'  <div class="card"><span>Findings analyseur</span>'
+                f'<span class="value">{findings_total}</span></div>\n'
+            )
         body = f"""
 <h1>Documentation Salesforce</h1>
 <p>Source analysee: <code>{html_value(snapshot.source_dir)}</code></p>
@@ -871,7 +1067,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
   <div class="card"><span>Flows</span><span class="value">{metrics.flows}</span></div>
   <div class="card"><span>Classes / Triggers</span><span class="value">{metrics.apex_classes + metrics.apex_triggers}</span></div>
   <div class="card"><span>Composants Omni</span><span class="value">{omni_total}</span></div>
-</div>
+{findings_card}</div>
 {tabs}
 """
         return self._page("Index", body, current_path, include_mermaid=False)
@@ -913,6 +1109,126 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             sections.append((label, table))
 
         return self._tabbed_sections("index-omni", sections)
+
+    def _render_index_analyzer_panel(
+        self,
+        analyzer_report,
+        current_path: Path,
+        object_pages: dict[str, Path],
+        apex_pages: dict[str, Path],
+        flow_pages: dict[str, Path],
+    ) -> str:
+        if analyzer_report is None:
+            return "<p class='empty'>Analyseur non execute.</p>"
+
+        findings = analyzer_report.all_findings()
+        summary = self._render_findings_summary(findings)
+        if not findings:
+            return summary + "<p class='empty'>Aucun finding : le projet respecte toutes les regles activees.</p>"
+
+        rule_counts = analyzer_report.rule_counts()
+        rules_by_id = {rule.id: rule for rule in analyzer_report.rules_used}
+        rule_rows = []
+        for rule_id, count in sorted(rule_counts.items(), key=lambda kv: (-kv[1], kv[0])):
+            rule = rules_by_id.get(rule_id)
+            if not rule:
+                continue
+            sev_css = SEVERITY_CSS_CLASS.get(rule.severity, "sev-info")
+            sev_label = SEVERITY_LABEL.get(rule.severity, rule.severity)
+            reference = ""
+            if rule.reference:
+                reference = f"<a href='{html_value(rule.reference)}' target='_blank' rel='noopener'>Reference</a>"
+            rule_rows.append(
+                f"<tr>"
+                f"<td><span class='sev-badge {sev_css}'>{html_value(sev_label)}</span></td>"
+                f"<td>{html_value(rule.id)}</td>"
+                f"<td>{html_value(rule.title)}</td>"
+                f"<td>{html_value(rule.category)} - {html_value(rule.subcategory)}</td>"
+                f"<td>{count}</td>"
+                f"<td>{reference}</td>"
+                f"</tr>"
+            )
+        rule_table = (
+            "<table><thead><tr><th>Severite</th><th>Identifiant</th><th>Regle</th><th>Categorie</th><th>Occurrences</th><th>Reference</th></tr></thead>"
+            f"<tbody>{''.join(rule_rows)}</tbody></table>"
+        )
+
+        # Tableau par artefact avec lien vers la page
+        artifact_rows: list[str] = []
+
+        def _artifact_row(kind: str, name: str, findings_list: list[Finding], href: str) -> str:
+            if not findings_list:
+                return ""
+            counts = {"Critical": 0, "Major": 0, "Minor": 0, "Info": 0}
+            for finding in findings_list:
+                counts[finding.rule.severity] = counts.get(finding.rule.severity, 0) + 1
+            sev_cells = "".join(
+                f"<td>{counts.get(sev, 0)}</td>"
+                for sev in ("Critical", "Major", "Minor", "Info")
+            )
+            name_cell = (
+                f"<a href='{html_value(href)}'>{html_value(name)}</a>" if href else html_value(name)
+            )
+            return (
+                f"<tr><td>{html_value(kind)}</td><td>{name_cell}</td>"
+                f"{sev_cells}<td>{len(findings_list)}</td></tr>"
+            )
+
+        for name, flist in analyzer_report.objects.items():
+            page = object_pages.get(name)
+            href = self._href(current_path, page) if page else ""
+            row = _artifact_row("Objet", name, flist, href)
+            if row:
+                artifact_rows.append(row)
+
+        for name, flist in analyzer_report.apex.items():
+            page = apex_pages.get(name)
+            href = self._href(current_path, page) if page else ""
+            row = _artifact_row("Apex", name, flist, href)
+            if row:
+                artifact_rows.append(row)
+
+        for name, flist in analyzer_report.flows.items():
+            page = flow_pages.get(name)
+            href = self._href(current_path, page) if page else ""
+            row = _artifact_row("Flow", name, flist, href)
+            if row:
+                artifact_rows.append(row)
+
+        for name, flist in analyzer_report.validation_rules.items():
+            row = _artifact_row("Validation Rule", name, flist, "")
+            if row:
+                artifact_rows.append(row)
+
+        for name, flist in analyzer_report.data_transforms.items():
+            row = _artifact_row("Data Transform", name, flist, "")
+            if row:
+                artifact_rows.append(row)
+
+        artifact_rows.sort()
+        if not artifact_rows:
+            artifact_table = "<p class='empty'>Aucun composant impacte.</p>"
+        else:
+            artifact_table = (
+                "<table><thead><tr><th>Type</th><th>Composant</th>"
+                "<th>Critique</th><th>Majeur</th><th>Mineur</th><th>Info</th><th>Total</th></tr></thead>"
+                f"<tbody>{''.join(artifact_rows)}</tbody></table>"
+            )
+
+        note = (
+            "<p class='empty'>Analyseur inspire de "
+            "<a href='https://docs.pmd-code.org/latest/pmd_rules_apex.html' target='_blank' rel='noopener'>PMD Apex</a>, du "
+            "<a href='https://architect.salesforce.com/docs/architect/well-architected/guide/overview.html' target='_blank' rel='noopener'>Salesforce Well-Architected Framework</a>, "
+            "des <a href='https://architect.salesforce.com/decision-guides' target='_blank' rel='noopener'>Decision Guides Salesforce</a> et des bonnes pratiques "
+            "<a href='https://admin.salesforce.com/' target='_blank' rel='noopener'>Salesforce Admins</a>. "
+            "Les regles sont declarees dans <code>src/analyzer/rules.xml</code> et peuvent etre activees / desactivees via l'attribut <code>enabled</code>.</p>"
+        )
+
+        sections = [
+            ("Synthese par regle", rule_table),
+            ("Par composant", artifact_table),
+        ]
+        return summary + self._tabbed_sections("index-analyzer", sections) + note
 
     def _render_excel_exports(self, current_path: Path) -> str:
         excel_dir = self.output_dir / "excel"
@@ -1150,6 +1466,81 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             )
         return "".join(rows)
 
+    def _render_findings_summary(self, findings: list[Finding]) -> str:
+        if not findings:
+            return "<p class='empty'>Aucun point d'alerte detecte par l'analyseur.</p>"
+        counts: dict[str, int] = {}
+        for finding in findings:
+            counts[finding.rule.severity] = counts.get(finding.rule.severity, 0) + 1
+        chips = []
+        for severity in ("Critical", "Major", "Minor", "Info"):
+            if counts.get(severity):
+                css = SEVERITY_CSS_CLASS.get(severity, "")
+                label = SEVERITY_LABEL.get(severity, severity)
+                chips.append(
+                    f"<span class='chip {css}'><strong>{counts[severity]}</strong> {html_value(label)}</span>"
+                )
+        return "<div class='findings-summary'>" + "".join(chips) + "</div>"
+
+    def _render_findings_list(self, findings: list[Finding]) -> str:
+        if not findings:
+            return "<p class='empty'>Aucun point d'alerte detecte par l'analyseur.</p>"
+        items: list[str] = []
+        for finding in findings:
+            rule = finding.rule
+            severity_css = SEVERITY_CSS_CLASS.get(rule.severity, "sev-info")
+            severity_label = SEVERITY_LABEL.get(rule.severity, rule.severity)
+            reference = ""
+            if rule.reference:
+                reference = (
+                    f"<dt>Reference:</dt><dd><a href='{html_value(rule.reference)}' target='_blank' rel='noopener'>{html_value(rule.reference)}</a></dd>"
+                )
+            details_html = ""
+            if finding.details:
+                detail_items = "".join(
+                    f"<li>{html_value(detail)}</li>" for detail in finding.details
+                )
+                details_html = f"<ul class='details'>{detail_items}</ul>"
+            subcat = f" - {html_value(rule.subcategory)}" if rule.subcategory else ""
+            items.append(
+                "<li class='finding'>"
+                "<div class='head'>"
+                f"<span class='sev-badge {severity_css}'>{html_value(severity_label)}</span>"
+                f"<span class='category-badge'>{html_value(rule.category)}{subcat}</span>"
+                f"<span class='rule-id'>{html_value(rule.id)}</span>"
+                f"<span class='title'>{html_value(rule.title)}</span>"
+                "</div>"
+                f"<div class='message'>{html_value(finding.message or rule.description)}</div>"
+                "<dl class='metadata'>"
+                f"<dt>Justification:</dt><dd>{html_value(rule.rationale)}</dd>"
+                f"<dt>Remediation:</dt><dd>{html_value(rule.remediation)}</dd>"
+                f"<dt>Source:</dt><dd>{html_value(rule.source)}</dd>"
+                f"{reference}"
+                "</dl>"
+                f"{details_html}"
+                "</li>"
+            )
+        return "<ul class='findings-list'>" + "".join(items) + "</ul>"
+
+    def _findings_to_review_improvements(self, findings: list[Finding]) -> list[str]:
+        lines: list[str] = []
+        for finding in findings:
+            severity_label = SEVERITY_LABEL.get(finding.rule.severity, finding.rule.severity)
+            lines.append(
+                f"[{severity_label}] {finding.rule.id} - {finding.rule.title} : {finding.message or finding.rule.description}"
+            )
+        return lines
+
+    def _render_analyzer_tab(self, findings: list[Finding]) -> str:
+        summary = self._render_findings_summary(findings)
+        body = self._render_findings_list(findings)
+        note = (
+            "<p class='empty'>Regles inspirees de PMD Apex, du Salesforce Well-Architected Framework et des guides "
+            "Salesforce Architects / Admins. Chaque regle peut etre activee ou desactivee dans "
+            "<code>src/analyzer/rules.xml</code>.</p>"
+        )
+        return summary + body + note
+
     def _wrap_mermaid_block(self, diagram_source: str) -> str:
         return (
             "<div class='mermaid-container'>"
@@ -1162,6 +1553,214 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             f"<div class='mermaid'>\n{diagram_source}\n</div>"
             "</div>"
         )
+
+    def _data_transform_meta(self, xml_content: str) -> dict[str, str]:
+        try:
+            root = ET.fromstring(xml_content)
+        except ET.ParseError:
+            return {}
+        meta = {
+            "type": child_text(root, "type"),
+            "inputType": child_text(root, "inputType"),
+            "outputType": child_text(root, "outputType"),
+            "description": child_text(root, "description"),
+        }
+        return meta
+
+    def _data_transform_mermaid(self, xml_content: str, name: str) -> str | None:
+        try:
+            root = ET.fromstring(xml_content)
+        except ET.ParseError:
+            return None
+
+        items = root.findall("sf:omniDataTransformItem", SF_NS)
+        if not items:
+            return None
+
+        dt_type = child_text(root, "type") or "Data Transform"
+        input_type = child_text(root, "inputType") or ""
+        output_type = child_text(root, "outputType") or ""
+
+        state = {"counter": 0}
+
+        def new_id(prefix: str) -> str:
+            state["counter"] += 1
+            return f"{prefix}{state['counter']}"
+
+        input_nodes: dict[str, str] = {}
+        output_nodes: dict[str, str] = {}
+        edges: list[tuple[str, str, str]] = []
+        filter_nodes: list[tuple[str, str]] = []
+
+        def add_input(label: str) -> str:
+            key = label.strip() or "(vide)"
+            if key not in input_nodes:
+                input_nodes[key] = new_id("I")
+            return input_nodes[key]
+
+        def add_output(label: str) -> str:
+            key = label.strip() or "(vide)"
+            if key not in output_nodes:
+                output_nodes[key] = new_id("O")
+            return output_nodes[key]
+
+        max_items = 80
+        shown = 0
+        truncated = False
+        disabled_ids: list[str] = []
+
+        for item in items:
+            if shown >= max_items:
+                truncated = True
+                break
+            input_obj = child_text(item, "inputObjectName")
+            input_field = child_text(item, "inputFieldName")
+            output_obj = child_text(item, "outputObjectName")
+            output_field = child_text(item, "outputFieldName")
+            formula_expr = child_text(item, "formulaExpression")
+            formula_converted = child_text(item, "formulaConverted")
+            formula_path = child_text(item, "formulaResultPath")
+            default_value = child_text(item, "defaultValue")
+            filter_op = child_text(item, "filterOperator")
+            filter_val = child_text(item, "filterValue")
+            migration_value = child_text(item, "migrationValue")
+            is_disabled = child_text(item, "disabled").lower() == "true"
+
+            is_filter_only = bool(filter_op) and not output_field and not output_obj
+            if is_filter_only:
+                lbl = f"Filtre : {filter_op} {filter_val}" if filter_val else f"Filtre : {filter_op}"
+                if input_obj:
+                    lbl = f"{input_obj} -> " + lbl
+                filter_nodes.append((new_id("F"), lbl))
+                continue
+
+            if formula_expr:
+                input_label = f"Formule : {formula_expr}"
+            elif formula_converted:
+                input_label = f"Formule : {formula_converted}"
+            elif input_obj and input_field:
+                input_label = f"{input_obj}.{input_field}"
+            elif input_field:
+                input_label = input_field
+            elif default_value:
+                input_label = f"Valeur par defaut : {default_value}"
+            elif migration_value:
+                input_label = f"Migration : {migration_value}"
+            else:
+                input_label = "Racine JSON d'entree"
+
+            if output_obj and output_field:
+                output_label = f"{output_obj}.{output_field}"
+            elif output_field:
+                output_label = output_field
+            elif formula_path:
+                output_label = f"Variable {formula_path}"
+            elif output_obj:
+                output_label = output_obj
+            else:
+                output_label = "(sortie implicite)"
+
+            in_id = add_input(input_label)
+            out_id = add_output(output_label)
+
+            edge_parts: list[str] = []
+            if filter_op and filter_val:
+                edge_parts.append(f"filtre {filter_op} {filter_val}")
+            elif filter_op and filter_val == "":
+                pass
+            if default_value and not formula_expr:
+                edge_parts.append(f"defaut={default_value}")
+            if is_disabled:
+                edge_parts.append("DESACTIVE")
+            edge_label = ", ".join(edge_parts)
+
+            edges.append((in_id, out_id, edge_label))
+            if is_disabled:
+                disabled_ids.append(out_id)
+            shown += 1
+
+        if not input_nodes and not output_nodes and not filter_nodes:
+            return None
+
+        lines: list[str] = ["flowchart LR"]
+
+        header_bits = [dt_type]
+        if input_type:
+            header_bits.append(f"in:{input_type}")
+        if output_type:
+            header_bits.append(f"out:{output_type}")
+        header_label = self._mermaid_condition_label(" - ".join(header_bits))
+        lines.append(f'    Header["{header_label}"]:::dtHeader')
+
+        if input_nodes:
+            lines.append('    subgraph Sources["Sources de donnees"]')
+            lines.append("    direction TB")
+            for label, nid in input_nodes.items():
+                safe = self._mermaid_condition_label(label)
+                lines.append(f'        {nid}["{safe}"]:::dtIn')
+            lines.append("    end")
+
+        if filter_nodes:
+            lines.append('    subgraph Filtres["Filtres appliques"]')
+            lines.append("    direction TB")
+            for nid, label in filter_nodes:
+                safe = self._mermaid_condition_label(label)
+                lines.append(f'        {nid}["{safe}"]:::dtFilter')
+            lines.append("    end")
+            lines.append("    Header --> Filtres")
+
+        if output_nodes:
+            lines.append('    subgraph Cibles["Cibles produites"]')
+            lines.append("    direction TB")
+            for label, nid in output_nodes.items():
+                safe = self._mermaid_condition_label(label)
+                lines.append(f'        {nid}["{safe}"]:::dtOut')
+            lines.append("    end")
+
+        if input_nodes:
+            lines.append("    Header --> Sources")
+
+        for src, dst, label in edges:
+            if label:
+                safe_label = self._mermaid_condition_label(label)
+                lines.append(f'    {src} -->|"{safe_label}"| {dst}')
+            else:
+                lines.append(f"    {src} --> {dst}")
+
+        if truncated:
+            nid = new_id("T")
+            lines.append(
+                f'    {nid}["... {len(items) - shown} mappings supplementaires non affiches"]:::dtTruncated'
+            )
+
+        if disabled_ids:
+            for did in disabled_ids:
+                lines.append(f"    class {did} dtDisabled")
+
+        lines.append(
+            "    classDef dtHeader fill:#1e293b,color:#f8fafc,stroke:#0f172a,stroke-width:2px;"
+        )
+        lines.append(
+            "    classDef dtIn fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a;"
+        )
+        lines.append(
+            "    classDef dtOut fill:#dcfce7,stroke:#166534,color:#14532d;"
+        )
+        lines.append(
+            "    classDef dtFilter fill:#fef3c7,stroke:#b45309,color:#78350f;"
+        )
+        lines.append(
+            "    classDef dtTruncated fill:#e2e8f0,stroke:#475569,color:#1e293b,font-style:italic;"
+        )
+        lines.append(
+            "    classDef dtDisabled stroke-dasharray:5 5,color:#64748b;"
+        )
+        lines.append("    style Sources fill:#eff6ff,stroke:#60a5fa")
+        lines.append("    style Cibles fill:#f0fdf4,stroke:#4ade80")
+        if filter_nodes:
+            lines.append("    style Filtres fill:#fffbeb,stroke:#f59e0b")
+
+        return "\n".join(lines)
 
     def _mermaid_condition_label(self, text: str) -> str:
         if not text:
@@ -1729,6 +2328,13 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
   if (fit) {{
     fit.addEventListener("click", () => network.fit({{ animation: true }}));
   }}
+  network.on("doubleClick", (params) => {{
+    const scale = network.getScale();
+    const evt = params && params.event && params.event.srcEvent;
+    const shift = !!(evt && evt.shiftKey);
+    const factor = shift ? (1 / zoomStep) : zoomStep;
+    network.moveTo({{ scale: scale * factor, animation: {{ duration: 150 }} }});
+  }});
   network.once("stabilizationIterationsDone", () => {{
     network.setOptions({{ physics: false }});
   }});
