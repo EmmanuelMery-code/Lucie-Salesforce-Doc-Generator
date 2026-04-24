@@ -44,3 +44,7 @@ static_code_analysis_rules.csv
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# MS Office / Word lock files (created while a .rtf/.docx is open)
+~$*
+*.tmp

@@ -10,10 +10,15 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 import webbrowser
 
+import time
+
 from src.ai import (
     AIMessage,
     AIProviderNotConfigured,
     AIProviderNotInstalled,
+    CLAUDE_MODELS,
+    DailyQuotaExceeded,
+    GEMINI_MODELS,
     build_org_context,
     build_system_prompt,
     create_service,
@@ -45,6 +50,11 @@ class Application(tk.Tk):
     LANGUAGES = UI_LANGUAGES
     ORG_CHECK_CHOICES = UI_ORG_CHECK_CHOICES
     AI_PROVIDERS = UI_AI_PROVIDERS
+    GEMINI_MODEL_CHOICES = GEMINI_MODELS
+    CLAUDE_MODEL_CHOICES = CLAUDE_MODELS
+    DEFAULT_GEMINI_MODEL = GEMINI_MODELS[0]
+    DEFAULT_CLAUDE_MODEL = CLAUDE_MODELS[0]
+    DISCUSSION_MIN_INTERVAL_SECONDS = 5.0  # stay safely under 15 RPM free tier
     TRANSLATIONS = UI_TRANSLATIONS
 
     SCORING_COMPONENTS: list[tuple[str, str, str]] = [
@@ -113,6 +123,16 @@ class Application(tk.Tk):
         self.ai_provider_var = tk.StringVar(value=default_provider)
         self.claude_api_key_var = tk.StringVar(value=self.settings.get("claude_api_key", ""))
         self.gemini_api_key_var = tk.StringVar(value=self.settings.get("gemini_api_key", ""))
+        stored_claude_model = str(self.settings.get("claude_model", "") or "").strip()
+        if stored_claude_model not in self.CLAUDE_MODEL_CHOICES:
+            stored_claude_model = self.DEFAULT_CLAUDE_MODEL
+        stored_gemini_model = str(self.settings.get("gemini_model", "") or "").strip()
+        # Silently migrate retired models (Google pulled gemini-1.5-* and
+        # gemini-2.0-* in March 2026) to the most generous 2.5 option.
+        if stored_gemini_model not in self.GEMINI_MODEL_CHOICES:
+            stored_gemini_model = self.DEFAULT_GEMINI_MODEL
+        self.claude_model_var = tk.StringVar(value=stored_claude_model)
+        self.gemini_model_var = tk.StringVar(value=stored_gemini_model)
         stored_prompt = self.settings.get("system_prompt")
         if not isinstance(stored_prompt, str) or not stored_prompt.strip():
             stored_prompt = build_system_prompt(self.language)
@@ -156,6 +176,7 @@ class Application(tk.Tk):
         self.discussion_messages: list[AIMessage] = []
         self.discussion_worker: Thread | None = None
         self.discussion_pending: bool = False
+        self._discussion_last_send_ts: float = 0.0
 
         self._build_ui()
         self._apply_language(initial=True)
@@ -547,6 +568,15 @@ class Application(tk.Tk):
         if self.discussion_pending:
             self._append_discussion_line(self._t("discussion_busy"), tag="error")
             return
+        now = time.monotonic()
+        gap = now - self._discussion_last_send_ts
+        if self._discussion_last_send_ts and gap < self.DISCUSSION_MIN_INTERVAL_SECONDS:
+            wait = self.DISCUSSION_MIN_INTERVAL_SECONDS - gap
+            self._append_discussion_line(
+                self._t("discussion_throttle_wait", seconds=int(round(wait)) or 1),
+                tag="system",
+            )
+            return
         message = self.discussion_input_var.get().strip()
         if not message:
             return
@@ -565,12 +595,18 @@ class Application(tk.Tk):
             return
 
         system_prompt = self.system_prompt or build_system_prompt(self.language)
-        context = build_org_context(self.latest_snapshot)
+        context = build_org_context(
+            self.latest_snapshot,
+            source_dir=self.source_var.get().strip() or None,
+            documentation_dir=self.output_var.get().strip() or None,
+        )
         full_system = f"{system_prompt}\n\n{context}"
 
         settings_for_service = {
             "claude_api_key": self.claude_api_key_var.get(),
             "gemini_api_key": self.gemini_api_key_var.get(),
+            "claude_model": self.claude_model_var.get().strip() or self.DEFAULT_CLAUDE_MODEL,
+            "gemini_model": self.gemini_model_var.get().strip() or self.DEFAULT_GEMINI_MODEL,
         }
 
         try:
@@ -582,19 +618,40 @@ class Application(tk.Tk):
 
         messages_snapshot = list(self.discussion_messages)
         self.discussion_pending = True
+        self._discussion_last_send_ts = time.monotonic()
         self.discussion_send_button.configure(state="disabled")
         self._append_discussion_line(
             self._t("discussion_thinking", provider=provider), tag="system"
         )
 
+        queue = self.queue
+
+        def on_retry(attempt: int, max_attempts: int, wait_seconds: float) -> None:
+            queue.put((
+                "discussion_info",
+                {
+                    "provider": provider,
+                    "attempt": attempt,
+                    "max_attempts": max_attempts,
+                    "seconds": int(round(wait_seconds)),
+                    "kind": "rate_limit",
+                },
+            ))
+
         def worker() -> None:
             try:
-                reply = service.chat(messages_snapshot, system_prompt=full_system)
-                self.queue.put(("discussion_reply", {"provider": provider, "reply": reply}))
+                reply = service.chat(
+                    messages_snapshot,
+                    system_prompt=full_system,
+                    on_retry=on_retry,
+                )
+                queue.put(("discussion_reply", {"provider": provider, "reply": reply}))
             except (AIProviderNotConfigured, AIProviderNotInstalled) as exc:
-                self.queue.put(("discussion_error", str(exc)))
+                queue.put(("discussion_error", str(exc)))
+            except DailyQuotaExceeded as exc:
+                queue.put(("discussion_error", str(exc)))
             except Exception as exc:  # pragma: no cover - network failures
-                self.queue.put(("discussion_error", f"{type(exc).__name__}: {exc}"))
+                queue.put(("discussion_error", f"{type(exc).__name__}: {exc}"))
 
         self.discussion_worker = Thread(target=worker, daemon=True)
         self.discussion_worker.start()
@@ -618,6 +675,20 @@ class Application(tk.Tk):
         self._append_discussion_line(
             self._t("discussion_error", error=message), tag="error"
         )
+
+    def _handle_discussion_info(self, payload: dict[str, object]) -> None:
+        kind = str(payload.get("kind", ""))
+        if kind == "rate_limit":
+            self._append_discussion_line(
+                self._t(
+                    "discussion_rate_limit_wait",
+                    provider=str(payload.get("provider", "")),
+                    seconds=int(payload.get("seconds", 0) or 0),
+                    attempt=int(payload.get("attempt", 0) or 0),
+                    max_attempts=int(payload.get("max_attempts", 0) or 0),
+                ),
+                tag="system",
+            )
 
     def _open_index(self) -> None:
         output = self._validate_output_dir()
@@ -778,6 +849,8 @@ class Application(tk.Tk):
             "ai_provider": tk.StringVar(value=self.ai_provider_var.get()),
             "claude_key": tk.StringVar(value=self.claude_api_key_var.get()),
             "gemini_key": tk.StringVar(value=self.gemini_api_key_var.get()),
+            "claude_model": tk.StringVar(value=self.claude_model_var.get()),
+            "gemini_model": tk.StringVar(value=self.gemini_model_var.get()),
             "generate_excels": tk.BooleanVar(value=bool(self.generate_excels_var.get())),
             "generate_org_check_reports": tk.BooleanVar(
                 value=bool(self.generate_org_check_reports_var.get())
@@ -873,9 +946,28 @@ class Application(tk.Tk):
         self._config_entry_row(
             ai_frame, self._t("configuration_claude_key"), edit_vars["claude_key"], show="*"
         )
+        self._config_combo_row(
+            ai_frame,
+            self._t("configuration_claude_model"),
+            edit_vars["claude_model"],
+            list(self.CLAUDE_MODEL_CHOICES),
+        )
         self._config_entry_row(
             ai_frame, self._t("configuration_gemini_key"), edit_vars["gemini_key"], show="*"
         )
+        self._config_combo_row(
+            ai_frame,
+            self._t("configuration_gemini_model"),
+            edit_vars["gemini_model"],
+            list(self.GEMINI_MODEL_CHOICES),
+        )
+        ttk.Label(
+            ai_frame,
+            text=self._t("configuration_model_hint"),
+            wraplength=640,
+            justify="left",
+            foreground="#475569",
+        ).pack(anchor="w", pady=(6, 0))
 
         prompt_frame = ttk.LabelFrame(
             parent, text=self._t("configuration_section_prompt"), padding=10
@@ -1459,6 +1551,13 @@ class Application(tk.Tk):
 
         self.claude_api_key_var.set(edit_vars["claude_key"].get())
         self.gemini_api_key_var.set(edit_vars["gemini_key"].get())
+
+        claude_model_choice = edit_vars["claude_model"].get().strip()
+        if claude_model_choice in self.CLAUDE_MODEL_CHOICES:
+            self.claude_model_var.set(claude_model_choice)
+        gemini_model_choice = edit_vars["gemini_model"].get().strip()
+        if gemini_model_choice in self.GEMINI_MODEL_CHOICES:
+            self.gemini_model_var.set(gemini_model_choice)
         self.generate_excels_var.set(bool(edit_vars["generate_excels"].get()))
         self.generate_org_check_reports_var.set(
             bool(edit_vars["generate_org_check_reports"].get())
@@ -2024,8 +2123,10 @@ class Application(tk.Tk):
             self.iconphoto(True, self.icon_image)
 
             self.hero_image = tk.PhotoImage(file=str(image_path))
-            width = max(1, self.hero_image.width() // 180)
-            height = max(1, self.hero_image.height() // 180)
+            # Target ~90 px on the longest side (half of the previous 180 px)
+            # so the hero image takes less vertical space in the main window.
+            width = max(1, self.hero_image.width() // 90)
+            height = max(1, self.hero_image.height() // 90)
             factor = max(width, height)
             if factor > 1:
                 self.hero_image = self.hero_image.subsample(factor, factor)
@@ -2074,6 +2175,8 @@ class Application(tk.Tk):
             "ai_provider": self.ai_provider_var.get().strip() or self.AI_PROVIDERS[0],
             "claude_api_key": self.claude_api_key_var.get(),
             "gemini_api_key": self.gemini_api_key_var.get(),
+            "claude_model": self.claude_model_var.get().strip() or self.DEFAULT_CLAUDE_MODEL,
+            "gemini_model": self.gemini_model_var.get().strip() or self.DEFAULT_GEMINI_MODEL,
             "system_prompt": self.system_prompt,
             "generate_excels": bool(self.generate_excels_var.get()),
             "generate_org_check_reports": bool(self.generate_org_check_reports_var.get()),
@@ -2625,6 +2728,9 @@ class Application(tk.Tk):
                     self._handle_discussion_reply(payload)
                 elif event_type == "discussion_error":
                     self._handle_discussion_error(str(payload))
+                elif event_type == "discussion_info":
+                    if isinstance(payload, dict):
+                        self._handle_discussion_info(payload)
         except Empty:
             pass
         self.after(150, self._poll_queue)

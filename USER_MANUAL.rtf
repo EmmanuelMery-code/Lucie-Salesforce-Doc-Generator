@@ -1,0 +1,456 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 User Manual \u8212- Lucie: Salesforce Doc Generator\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\i Version: April 2026 \u8212- Language: English}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Lucie is a Python application ({\f1 Tkinter} UI) that extracts metadata from a Salesforce org through the {\f1 sf} CLI and produces:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab a navigable HTML documentation (objects, fields, validation rules, flows, Apex, OmniStudio, Profiles / Permission Sets, executive index);\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Excel workbooks (permission sets, profiles, metadata inventory, PMD);\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab a {\b complexity score} and an {\b Adopt vs Adapt} score with fully configurable weights;\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab a configurable {\b static analyzer} (PMD rules + Well-Architected + Admin best practices);\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab an {\b AI assistant} (Claude / Gemini) to chat about the documented org.\sa180\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Table of contents\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab {\field{\*\fldinst{HYPERLINK "#1-prerequisites-and-installation"}}{\fldrslt{\ul
+Prerequisites and installation
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab {\field{\*\fldinst{HYPERLINK "#2-launching-the-application"}}{\fldrslt{\ul
+Launching the application
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab {\field{\*\fldinst{HYPERLINK "#3-main-window-documentation-tab"}}{\fldrslt{\ul
+Main window: Documentation tab
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab {\field{\*\fldinst{HYPERLINK "#4-main-window-discussion-tab-ai"}}{\fldrslt{\ul
+Main window: Discussion tab (AI)
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab {\field{\*\fldinst{HYPERLINK "#5-generated-reports"}}{\fldrslt{\ul
+Generated reports
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 6.\tx360\tab {\field{\*\fldinst{HYPERLINK "#6-configuration-menu"}}{\fldrslt{\ul
+Configuration menu
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 7.\tx360\tab {\field{\*\fldinst{HYPERLINK "#7-view-scoring-complexity"}}{\fldrslt{\ul
+View scoring (complexity)
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 8.\tx360\tab {\field{\*\fldinst{HYPERLINK "#8-view-adopt-vs-adapt"}}{\fldrslt{\ul
+View Adopt vs Adapt
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 9.\tx360\tab {\field{\*\fldinst{HYPERLINK "#9-downloads-menu"}}{\fldrslt{\ul
+Downloads menu
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 10.\tx360\tab {\field{\*\fldinst{HYPERLINK "#10-troubleshooting"}}{\fldrslt{\ul
+Troubleshooting
+}}}
+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 11.\tx360\tab {\field{\*\fldinst{HYPERLINK "#11-how-to-get-a-gemini-api-key-and-a-claude-api-key"}}{\fldrslt{\ul
+How to get a Gemini API key and a Claude API key
+}}}
+\sa180\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 1. Prerequisites and installation\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Required software\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx2880\clbrdrb\brdrs\cellx5760\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Tool\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Role\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Link\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Windows 10+\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Officially supported platform\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u8212-\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Python 3.12+\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Runtime\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "https://www.python.org/downloads/"}}{\fldrslt{\ul
+https://www.python.org/downloads/
+}}}
+\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Salesforce CLI ({\f1 sf})\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Org authentication and retrieve\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "https://developer.salesforce.com/tools/salesforcecli"}}{\fldrslt{\ul
+https://developer.salesforce.com/tools/salesforcecli
+}}}
+\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 PMD {\i (optional)}\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Advanced Apex static analysis\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "https://pmd.github.io/latest/pmd_userdocs_installation.html"}}{\fldrslt{\ul
+https://pmd.github.io/latest/pmd_userdocs_installation.html
+}}}
+\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\f1 Tkinter} ships with Python on Windows.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Step-by-step install\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 From the application folder ({\f1 c:\\...\\HtmlDocGenerator\\2026}):\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 python -m venv .venv\line
+.venv\\Scripts\\activate\line
+pip install -r requirements.txt\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\f1 requirements.txt} installs (among others) {\f1 openpyxl} (Excel), {\f1 anthropic} (Claude) and {\f1 google-generativeai} (Gemini).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Local preferences\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The application keeps its preferences in {\f1 app_settings.json} at the project root (language, alias, folders, API keys, scoring weights, system prompt, analyzer rules etc.). This file stays local (it is listed in {\f1 .gitignore}).\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 2. Launching the application\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 python app.py\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 On first launch the default language is {\b French}. Use the language combo at the top right of the main window to switch \u8212- every label, log message and heading is translated live.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The main window exposes two tabs:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Documentation}: full retrieve + generation pipeline.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Discussion}: chat with an AI assistant using the documented org as context.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The menu bar also provides:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Downloads}: shortcuts to external tools (SF CLI, PMD, Org Check).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Configuration}: settings window, complexity score editor, Adopt vs Adapt editor.\sa180\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 3. Main window: Documentation tab\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The tab is split into three stacked blocks, followed by an execution log.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 3.1 Salesforce login\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab {\b Alias}: short name you pick for the org (stored by {\f1 sf}).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab {\b Environment}: {\f1 Production}, {\f1 Sandbox} or {\f1 Custom}. The {\b Instance URL} field is auto-filled ({\f1 https://login.salesforce.com} or {\f1 https://test.salesforce.com}) and becomes editable in Custom mode for My Domain / Enhanced Domain URLs.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab {\b Web login} button: opens your default browser on the Salesforce login page. After authentication, the CLI stores the access tokens.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 3.2 Org selection and CLI pipeline\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Below the login block:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Available orgs}: dropdown populated from {\f1 sf org list} (auto-refreshed at startup and via the {\b Refresh} button).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Generate manifest}: produces {\f1 package.xml} for the selected org (internally uses {\f1 sf project generate manifest}).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Retrieve}: runs {\f1 sf project retrieve start -x package.xml} against the selected org and writes the source tree to the retrieve folder.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Full pipeline}: chains manifest + retrieve + documentation generation in a single click.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Connection tokens and intermediary files land in {\f1 .sf_cli_project/} and {\f1 .sfdx/} (both ignored by git).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 3.3 ORG CHECK reports (optional)\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b ORG CHECK report type}: {\f1 apex-classes}, {\f1 global-view} or {\f1 hardcoded-urls}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Generate ORG CHECK report}: runs the matching command and produces a summary Excel under {\f1 excel/}.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 3.4 Generation parameters\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Source folder}: root of a Salesforce retrieve (must contain {\f1 force-app/main/default/...}).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Output folder}: where the index, HTML, Excel and assets are written.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Exclusion file} {\i (optional)}: Excel workbook ({\f1 exclusion.xlsx}) listing artifacts to ignore (per type + name).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b PMD}: checkbox + ruleset {\f1 .xml} file. When enabled, PMD is run over the Apex source and violations are embedded in the HTML pages and exported to {\f1 pmd_violations.xlsx}.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 3.5 Running the generation\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Generate documentation}: runs the pipeline against the source folder (no retrieve first). The button is disabled while a run is in progress.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Open index}: opens {\f1 index.html} in the default browser.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Execution log}: text area at the bottom; every step logs its progress (object count, classes, flows, analyzer findings etc.).\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 3.6 Reports to generate (checkbox inside Configuration)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The Configuration window lets you enable / disable:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab the documentation Excel workbooks;\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab the ORG CHECK reports.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Those toggles are persisted in {\f1 app_settings.json}.\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 4. Main window: Discussion tab (AI)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The Discussion tab lets you chat with an AI assistant (Claude or Gemini) using the documented org as context.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Provider}: reflects the provider chosen in Configuration (Gemini by default).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Context status}:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab {\i "No context available"}: as long as no generation has been run, no org summary is sent to the model.\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab {\i "Context available"}: after a run, a summary of the metadata (objects, Apex classes, flows, OmniStudio, analyzer findings, ...) is appended automatically under the system prompt for every message.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b History}: current conversation (blue = you, green = AI, grey = system, red = error).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Compose}: type your question and press {\f1 Enter} or click {\b Send}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Clear}: wipes the local history (does nothing on the provider side).\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The default system prompt explicitly tells the AI to walk source and documentation folders recursively before answering. You can tweak it in {\f1 Configuration > Discussion}.\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 {\b Prerequisite}: the matching provider API key must be set under {\f1 Configuration > Discussion}. See {\field{\*\fldinst{HYPERLINK "#11-how-to-get-a-gemini-api-key-and-a-claude-api-key"}}{\fldrslt{\ul
+chapter 11
+}}}
+.\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 5. Generated reports\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Inside the chosen output folder:\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 <output>/\line
+  index.html                    # Dashboard + Analyzer tab\line
+  objects/<Object>.html         # Object page + Validation Rules tab + Analyzer\line
+  apex/<Class>.html             # Apex page + heuristics + PMD + Analyzer\line
+  flows/<Flow>.html             # Flow page + diagram + Analyzer\line
+  omni/<Component>.html         # OmniStudio page (incl. Data Transforms)\line
+  assets/                       # CSS, images, Mermaid / vis-network bundles\line
+  excel/\line
+    permission_sets.xlsx\line
+    profiles.xlsx\line
+    metadata_inventory.xlsx\line
+    pmd_violations.xlsx         # only if PMD is enabled\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Interactive HTML pages\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Relationship / dependency graphs}: pan & zoom, drag nodes, double-click to zoom in, Shift + double-click to zoom out.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Mermaid}: used on Object pages and Validation Rules tabs. Outcome nodes are {\b green} (record saved) or {\b red} (record blocked).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Data Transforms}: explicit data transformation pipeline (input -> mapping -> output).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Analyzer tab}: static analyzer findings with severity (Critical / Major / Minor / Info), description, rationale, remediation and a link to the reference documentation.\sa180\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 6. Configuration menu\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Entry {\b Configuration > Show configuration screen}: opens a window with 3 tabs. Changes are persisted to {\f1 app_settings.json} only when you click {\b Save}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 6.1 Documentation tab\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b General settings}: interface language.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Salesforce}: default environment, instance URL, alias.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Folders and files}: source folder, output folder, exclusion file.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Analysis}: enable PMD + ruleset file.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Reports to generate}: Excel / ORG CHECK checkboxes.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 6.2 Discussion tab\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b AI provider}: {\f1 Gemini} or {\f1 Claude}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Claude key / Gemini key}: masked fields (password-style input).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b System prompt}: multi-line editor with a {\i "Reset to default"} button that restores the prompt shipped with the application (honouring the current language).\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 6.3 Analyzer rules tab\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b File path}: {\f1 src/analyzer/rules.xml} (read-only indicator).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Controls}:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab {\i Enable all / Disable all} (over currently visible rules);\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab {\i Reload from file}: re-reads the XML (drops unsaved edits).\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Filters}: severity, category (Trusted / Easy / Adaptable), scope (apex_class, apex_trigger, flow, object, field, validation_rule, omni_data_transform).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Rule list}: grouped by scope; each row has a checkbox, a colored severity badge, the ID, title and category. An {\i "X/Y active rules"} counter updates in real time.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Details pane}: clicking a rule shows its description, rationale, remediation, source and an {\i "Open reference"} button that opens the underlying documentation (PMD, Well-Architected, Admins, ...).\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 On save, only the {\f1 enabled} attributes are rewritten in {\f1 rules.xml} (comments and whitespace are preserved).\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 7. View scoring (complexity)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Entry {\b Configuration > View scoring}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Enter a weight (non-negative integer) for each component (custom objects, custom fields, record types, validation rules, layouts, custom apps, custom tabs, flows, Apex classes, triggers, OmniStudio).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab The live preview reflects the latest generation.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Buttons:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab {\i Reset to default weights};\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab {\i Save}: persists the weights to {\f1 app_settings.json} and injects them into the next documentation build.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab The total score and its breakdown are rendered on {\f1 index.html} as a gauge and a per-component table.\sa180\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 8. View Adopt vs Adapt\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Entry {\b Configuration > View Adopt vs Adapt}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Used to assess how heavily the org is customized. "Adopt" (standard) and "Adapt" (custom) components are weighted independently to output a percentage of standard adoption:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Components included: custom objects, custom fields, Apex classes, flows, LWC, FlexiPages, OmniStudio (scripts, IP, cards, data transforms).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab The preview updates instantly as you change a weight.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab The indicator is displayed on {\f1 index.html} next to the complexity score.\sa180\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 9. Downloads menu\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Direct links to:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Salesforce CLI} ({\f1 sf})\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b PMD} (Apex static analysis)\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b ORG CHECK (AppExchange)}\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b ORG CHECK (source on GitHub)}\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Each entry opens the matching page in the default browser.\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 10. Troubleshooting\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx2880\clbrdrb\brdrs\cellx5760\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Symptom\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Likely cause\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Fix\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 "Salesforce CLI not found"\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 {\f1 sf} is not on PATH\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Reinstall the CLI and restart the Windows session\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 The org list is empty\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 No org connected or session expired\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Click {\b Web login} with an alias\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 "Source folder not found"\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Wrong path or retrieve not run yet\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Run {\b Retrieve} first, or pick a folder that contains {\f1 force-app/} manually\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Excel files are missing\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Toggle disabled in Configuration\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 {\f1 Configuration > Documentation > Reports to generate}\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 "Claude provider not configured" / "Gemini provider not configured"\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Missing API key\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 See {\field{\*\fldinst{HYPERLINK "#11-how-to-get-a-gemini-api-key-and-a-claude-api-key"}}{\fldrslt{\ul
+chapter 11
+}}}
+\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 AI cannot see any org context\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 No generation run in this session\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Run {\b Generate documentation} at least once\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Empty Mermaid diagrams\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 {\f1 assets/} folder missing\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Regenerate the documentation to recreate {\f1 assets/}\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The execution log (text area at the bottom of the main screen) contains detailed error traces and can be selected / copied.\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 11. How to get a Gemini API key and a Claude API key\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The discussion assistant stays neutral: you keep ownership of your key and your account. Keys are stored only in the local {\f1 app_settings.json}. No key is sent anywhere other than the selected provider.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 11.1 Getting a Google Gemini API key\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Gemini offers a generous {\b free tier} (with daily and per-minute quotas). It is the fastest way to try Lucie end-to-end.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Steps}:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Open {\field{\*\fldinst{HYPERLINK "https://aistudio.google.com/"}}{\fldrslt{\ul
+{\field{\*\fldinst{HYPERLINK "https://aistudio.google.com/"}}{\fldrslt{\ul
+https://aistudio.google.com/
+}}}
+
+}}}
+.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Sign in with a {\b Google} account (personal or workspace). Accept the Google AI Studio terms on first visit.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab In the left menu, click {\b "Get API key"}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab Click {\b "Create API key"}:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab either in a brand new Google Cloud project,\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab or by picking an existing project.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab Copy the generated key. It looks like {\f1 AIzaSy...} (alphanumeric, 39 characters).\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Quotas and billing}:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab The free tier allows a bounded number of requests per minute and per day. For heavier usage, enable billing on the Google Cloud project that owns the API key and switch to the {\b paid tier}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab See {\field{\*\fldinst{HYPERLINK "https://ai.google.dev/gemini-api/docs/pricing"}}{\fldrslt{\ul
+{\field{\*\fldinst{HYPERLINK "https://ai.google.dev/gemini-api/docs/pricing"}}{\fldrslt{\ul
+https://ai.google.dev/gemini-api/docs/pricing
+}}}
+
+}}}
+ for up-to-date pricing and the list of models.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Wiring it inside Lucie}:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Open {\b Configuration > Show configuration screen}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Go to the {\b Discussion} tab.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab Set {\b AI provider: Gemini}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab Paste the key into the {\b Gemini API key} field.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab Click {\b Save}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 6.\tx360\tab Go back to the main window's {\b Discussion} tab, run at least one documentation generation, and send your first message.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 11.2 Getting an Anthropic Claude API key\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Anthropic does {\b not} offer a free tier: you need a funded account (pay-as-you-go billing, sometimes topped up with trial credits).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Steps}:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Open {\field{\*\fldinst{HYPERLINK "https://console.anthropic.com/"}}{\fldrslt{\ul
+{\field{\*\fldinst{HYPERLINK "https://console.anthropic.com/"}}{\fldrslt{\ul
+https://console.anthropic.com/
+}}}
+
+}}}
+.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Create an account (email + password or Google SSO) or sign in.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab Complete the phone verification required on first access.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab In the side bar, go to {\b "Settings"} then {\b "Billing"}:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab load the account with a valid payment method (credit card);\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab a starter credit is often granted to new accounts \u8212- double-check the Billing page to confirm.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab Still under {\b Settings}, go to {\b "API Keys"}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 6.\tx360\tab Click {\b "Create Key"}, give it a descriptive name (for example {\f1 lucie-doc-generator}) and pick the {\b "Default"} scope.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 7.\tx360\tab Copy the generated key. It looks like {\f1 sk-ant-api03-...} (it always starts with {\f1 sk-ant-}).\sa180\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 {\b Important}: Anthropic only reveals the full key once. Copy it into a password manager straight away before closing the dialog.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Models and pricing}:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Lucie uses the {\b Claude 3} model family (the exact model is configured on the service side). Prices are listed at {\field{\*\fldinst{HYPERLINK "https://www.anthropic.com/pricing"}}{\fldrslt{\ul
+{\field{\*\fldinst{HYPERLINK "https://www.anthropic.com/pricing"}}{\fldrslt{\ul
+https://www.anthropic.com/pricing
+}}}
+
+}}}
+.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab The cost depends on input and output tokens: the org context injected by Lucie typically weighs a few thousand tokens per exchange.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Wiring it inside Lucie}:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Open {\b Configuration > Show configuration screen}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Go to the {\b Discussion} tab.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab Set {\b AI provider: Claude}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab Paste the key into the {\b Claude API key} field.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab Click {\b Save}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 6.\tx360\tab From the main window's {\b Discussion} tab, confirm that the provider indicator displays {\i "Claude"} then send your first message.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 11.3 Security best practices\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Never} share an API key in a Git repository, a support ticket or an instant-messaging channel. {\f1 app_settings.json} is excluded from git by default.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Create a distinct key per workstation or per use case and keep its name meaningful in the provider console \u8212- this allows targeted revocation.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab If you suspect a leak, revoke the key immediately (the {\i Delete} button in the provider console) and generate a new one.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Monitor the usage / billing dashboards in each provider's console on a regular basis.\sa180\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\i End of the user manual.}\par}
+}

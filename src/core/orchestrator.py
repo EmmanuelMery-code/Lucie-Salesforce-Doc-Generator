@@ -70,6 +70,7 @@ class SalesforceDocumentationGenerator:
         permission_excel = None
         profile_excel = None
         inventory_excel = None
+        data_dictionary_excels: list = []
         if self.generate_excels:
             self.log("Generation des classeurs Excel de documentation.")
             permission_excel = self._safe_excel(
@@ -95,6 +96,13 @@ class SalesforceDocumentationGenerator:
                     excel_dir / "metadata_inventory.xlsx",
                 ),
             )
+            data_dictionary_excels = self._safe_excel(
+                "data_dictionary.xlsx",
+                lambda: excel_writer.write_data_dictionary_workbooks(
+                    snapshot.objects,
+                    excel_dir,
+                ),
+            ) or []
         else:
             self.log("Generation des Excels desactivee dans la configuration.")
 
@@ -174,6 +182,7 @@ class SalesforceDocumentationGenerator:
             "permission_excel": permission_excel,
             "profile_excel": profile_excel,
             "inventory_excel": inventory_excel,
+            "data_dictionary_excels": data_dictionary_excels,
             "pmd_excel": pmd_excel,
             "index": index_path,
             "object_pages": object_pages,
