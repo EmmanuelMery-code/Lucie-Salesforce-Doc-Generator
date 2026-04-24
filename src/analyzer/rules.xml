@@ -88,6 +88,35 @@
     <remediation>Accumuler les enregistrements dans une List puis executer un seul DML apres la boucle.</remediation>
   </rule>
 
+  <rule id="APEX-REL-002" enabled="true" scope="apex_class" category="Trusted" subcategory="Reliable"
+        severity="Major" source="Apex recursion anti-pattern + Well-Architected Reliable"
+        reference="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_bestpractices.htm">
+    <title>Methode Apex suspectee de recursion sans garde</title>
+    <description>Une methode (ou l'une de ses surcharges) est invoquee depuis son propre corps, sans mecanisme visible de garde de reentrance (variable statique, compteur, Set d'Ids deja traites).</description>
+    <rationale>
+      Une recursion mal bornee epuise rapidement les limites gouverneurs (CPU time, heap, DML/SOQL)
+      et provoque une LimitException ou un StackOverflow. Dans Salesforce la recursion est souvent
+      involontaire, par exemple via un helper appele depuis un trigger qui re-ecrit les donnees
+      d'origine. Le pilier Trusted > Reliable impose des garde-fous explicites.
+    </rationale>
+    <remediation>Supprimer la recursion si elle est involontaire, ou ajouter une garde (Set&lt;Id&gt; ou compteur static) qui empeche une seconde reentree pour le meme scope.</remediation>
+  </rule>
+
+  <rule id="APEX-REL-003" enabled="true" scope="apex_class" category="Trusted" subcategory="Reliable"
+        severity="Major" source="Apex recursion anti-pattern + Well-Architected Composable"
+        reference="https://architect.salesforce.com/docs/architect/well-architected/guide/adaptable-separation-of-concerns">
+    <title>Cycle d'appels detecte entre plusieurs classes Apex</title>
+    <description>La classe participe a un cycle d'invocations avec d'autres classes Apex (A appelle B, B appelle A, ou cycle plus long). Un tel graphe d'appels peut boucler sans controle.</description>
+    <rationale>
+      Un cycle d'appels entre classes rend l'execution difficile a borner : chaque passage peut
+      re-declencher la chaine via un trigger, un handler ou un service. Cela complique aussi la
+      maintenance (impossible de tester une classe sans simuler son partenaire) et entre en
+      contradiction avec les piliers Trusted > Reliable et Adaptable > Composable qui recommandent
+      des graphes d'appels acycliques.
+    </rationale>
+    <remediation>Casser le cycle en introduisant une interface ou un service intermediaire, ou en deplacant la responsabilite commune dans une classe "socle" qui ne rappelle pas ses appelants.</remediation>
+  </rule>
+
   <rule id="APEX-MAINT-001" enabled="true" scope="apex_class" category="Easy" subcategory="Maintainability"
         severity="Minor" source="PMD ExcessiveClassLength"
         reference="https://docs.pmd-code.org/latest/pmd_rules_apex_design.html#excessiveclasslength">
@@ -136,6 +165,21 @@
       Un trigger qui porte la logique devient impossible a re-orchestrer ou tester unitairement.
     </rationale>
     <remediation>Appliquer un framework Trigger Handler (fflib, TriggerHandler, ou maison) et deplacer toute la logique dans la classe handler.</remediation>
+  </rule>
+
+  <rule id="TRIG-REL-001" enabled="true" scope="apex_trigger" category="Trusted" subcategory="Reliable"
+        severity="Critical" source="Salesforce Apex Trigger Best Practices"
+        reference="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_bestpractices.htm">
+    <title>Trigger after insert/update re-ecrivant les enregistrements declencheurs</title>
+    <description>Un trigger "after insert" ou "after update" execute un DML (update / upsert / Database.update) sur Trigger.new, Trigger.newMap ou une copie de ces collections, ce qui re-declenche immediatement le meme trigger.</description>
+    <rationale>
+      Dans un trigger after-save, toute mise a jour des enregistrements declencheurs est re-interceptee
+      par Apex et relance la chaine complete des triggers. Sans garde (classe statique, flag Set&lt;Id&gt;),
+      la transaction consomme les limites gouverneur (CPU, DML, SOQL) ou leve une LimitException.
+      C'est un des pieges les plus frequents des triggers Salesforce et un anti-pattern explicite du
+      pilier Trusted > Reliable.
+    </rationale>
+    <remediation>Effectuer la mise a jour des champs de l'enregistrement dans un "before insert" / "before update" (pas besoin de DML), ou introduire un TriggerHandler avec un Set&lt;Id&gt; statique qui empeche la reentrance.</remediation>
   </rule>
 
   <rule id="TRIG-PERF-001" enabled="true" scope="apex_trigger" category="Easy" subcategory="Efficiency"
