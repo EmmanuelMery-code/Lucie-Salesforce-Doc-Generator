@@ -462,16 +462,38 @@ class Application(tk.Tk):
         window.geometry("720x620")
         window.transient(self)
 
-        outer = ttk.Frame(window, padding=16)
-        outer.pack(fill="both", expand=True)
+        # Add scrollbar support
+        container = ttk.Frame(window)
+        container.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(container, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, padding=16)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Mouse wheel support
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         ttk.Label(
-            outer,
+            scrollable_frame,
             text=self._t("configuration_title"),
             font=("Segoe UI", 13, "bold"),
         ).pack(anchor="w", pady=(0, 8))
 
-        notebook = ttk.Notebook(outer)
+        notebook = ttk.Notebook(scrollable_frame)
         notebook.pack(fill="both", expand=True)
 
         doc_tab = ttk.Frame(notebook, padding=12)
@@ -502,7 +524,7 @@ class Application(tk.Tk):
         self._build_configuration_documentation_tab(doc_tab, edit_vars)
         self._build_configuration_discussion_tab(discussion_tab, edit_vars)
 
-        buttons_row = ttk.Frame(outer)
+        buttons_row = ttk.Frame(scrollable_frame)
         buttons_row.pack(fill="x", pady=(12, 0))
         ttk.Button(
             buttons_row,
@@ -685,8 +707,35 @@ class Application(tk.Tk):
         window.geometry("820x680")
         window.transient(self)
 
-        container = ttk.Frame(window, padding=16)
-        container.pack(fill="both", expand=True)
+        # Add scrollbar support
+        outer_container = ttk.Frame(window)
+        outer_container.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(outer_container, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer_container, orient="vertical", command=canvas.yview)
+        container = ttk.Frame(canvas, padding=16)
+
+        container.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas_window = canvas.create_window((0, 0), window=container, anchor="nw")
+
+        def _on_canvas_configure(event):
+            canvas.itemconfigure(canvas_window, width=event.width)
+
+        canvas.bind("<Configure>", _on_canvas_configure)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Mouse wheel support
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         ttk.Label(
             container,
