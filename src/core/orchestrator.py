@@ -20,6 +20,7 @@ class SalesforceDocumentationGenerator:
         pmd_ruleset_path: str | Path | None = None,
         generate_excels: bool = True,
         scoring_weights: dict[str, int] | None = None,
+        adopt_adapt_weights: dict[str, int] | None = None,
         log_callback=None,
     ) -> None:
         self.source_dir = Path(source_dir).resolve()
@@ -31,6 +32,7 @@ class SalesforceDocumentationGenerator:
         self.pmd_ruleset_path = Path(pmd_ruleset_path).resolve() if pmd_ruleset_path else None
         self.generate_excels = generate_excels
         self.scoring_weights = scoring_weights
+        self.adopt_adapt_weights = adopt_adapt_weights
         self.log = log_callback or (lambda message: None)
 
     def _safe_excel(self, label: str, producer):
@@ -52,6 +54,8 @@ class SalesforceDocumentationGenerator:
         snapshot = parser.parse()
         if self.scoring_weights:
             snapshot.metrics.weights = dict(self.scoring_weights)
+        if self.adopt_adapt_weights:
+            snapshot.metrics.adopt_adapt_weights = dict(self.adopt_adapt_weights)
         self.log("Lecture des metadata terminee.")
 
         excel_writer = ExcelReportWriter(log_callback=self.log)

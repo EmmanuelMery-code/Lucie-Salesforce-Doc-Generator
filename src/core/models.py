@@ -31,6 +31,8 @@ class ValidationRuleInfo:
     active: bool = False
     description: str = ""
     error_display_field: str = ""
+    error_message: str = ""
+    error_condition_formula: str = ""
 
 
 @dataclass(slots=True)
@@ -243,6 +245,19 @@ DEFAULT_SCORING_WEIGHTS: dict[str, int] = {
     "omni_data_transforms": 2,
 }
 
+DEFAULT_ADOPT_ADAPT_WEIGHTS: dict[str, int] = {
+    "custom_objects": 20,
+    "custom_fields": 10,
+    "apex_classes": 30,
+    "flows": 25,
+    "lwc": 25,
+    "flexipages": 15,
+    "omni_scripts": 20,
+    "omni_integration_procedures": 20,
+    "omni_ui_cards": 20,
+    "omni_data_transforms": 15,
+}
+
 
 @dataclass(slots=True)
 class CustomizationMetrics:
@@ -260,7 +275,10 @@ class CustomizationMetrics:
     omni_integration_procedures: int = 0
     omni_ui_cards: int = 0
     omni_data_transforms: int = 0
+    lwc_count: int = 0
+    flexipage_count: int = 0
     weights: dict[str, int] | None = None
+    adopt_adapt_weights: dict[str, int] | None = None
 
     def _weight(self, key: str) -> int:
         if self.weights is not None:
@@ -270,6 +288,15 @@ class CustomizationMetrics:
             if isinstance(value, str) and value.strip().lstrip("-").isdigit():
                 return int(value.strip())
         return DEFAULT_SCORING_WEIGHTS[key]
+
+    def _aa_weight(self, key: str) -> int:
+        if self.adopt_adapt_weights is not None:
+            value = self.adopt_adapt_weights.get(key)
+            if isinstance(value, int):
+                return value
+            if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+                return int(value.strip())
+        return DEFAULT_ADOPT_ADAPT_WEIGHTS.get(key, 0)
 
     @property
     def score(self) -> int:
@@ -299,6 +326,33 @@ class CustomizationMetrics:
         if self.score < 350:
             return "Eleve"
         return "Tres eleve"
+
+    @property
+    def adopt_adapt_score(self) -> int:
+        """Calculates the Adopt vs Adapt score based on customization level."""
+        return (
+            self.custom_objects * self._aa_weight("custom_objects")
+            + self.custom_fields * self._aa_weight("custom_fields")
+            + self.apex_classes * self._aa_weight("apex_classes")
+            + self.flows * self._aa_weight("flows")
+            + self.lwc_count * self._aa_weight("lwc")
+            + self.flexipage_count * self._aa_weight("flexipages")
+            + self.omni_scripts * self._aa_weight("omni_scripts")
+            + self.omni_integration_procedures * self._aa_weight("omni_integration_procedures")
+            + self.omni_ui_cards * self._aa_weight("omni_ui_cards")
+            + self.omni_data_transforms * self._aa_weight("omni_data_transforms")
+        )
+
+    @property
+    def adopt_adapt_level(self) -> str:
+        score = self.adopt_adapt_score
+        if score < 100:
+            return "Adopt (Standard)"
+        if score < 300:
+            return "Adapt (Low Customization)"
+        if score < 600:
+            return "Adapt (Medium Customization)"
+        return "Adapt (High Customization)"
 
 
 @dataclass(slots=True)

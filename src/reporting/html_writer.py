@@ -13,8 +13,218 @@ from src.core.models import (
     PmdViolation,
     ReviewResult,
     SecurityArtifact,
+    ValidationRuleInfo,
 )
 from src.core.utils import html_value, safe_slug, write_text
+from src.reporting.formula_parser import FormulaNode, parse_formula
+
+
+MERMAID_RUNTIME_SCRIPT = r"""
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.5/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+<script>
+(function(){
+  function isVisible(el){
+    var p = el.parentElement;
+    while(p && p !== document.body){
+      if(p.classList && p.classList.contains("tab-panel") && !p.classList.contains("active")){
+        return false;
+      }
+      p = p.parentElement;
+    }
+    return true;
+  }
+  function captureSource(el){
+    if(!el.hasAttribute("data-mermaid-source")){
+      el.setAttribute("data-mermaid-source", el.textContent);
+    }
+  }
+  function parseTranslate(str){
+    if(!str) return {x:0,y:0};
+    var m = str.match(/translate\(\s*([-\d.eE+]+)\s*[, ]\s*([-\d.eE+]+)\s*\)/);
+    if(!m) return {x:0,y:0};
+    return {x: parseFloat(m[1]), y: parseFloat(m[2])};
+  }
+  function centerOfNode(node){
+    var tr = parseTranslate(node.getAttribute("transform"));
+    return {x: tr.x, y: tr.y};
+  }
+  function shiftPathEndpoints(path, startDelta, endDelta){
+    var d = path.getAttribute("d");
+    if(!d) return;
+    var numberRe = /-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/g;
+    var nums = d.match(numberRe);
+    if(!nums || nums.length < 4) return;
+    if(startDelta){
+      nums[0] = String(parseFloat(nums[0]) + startDelta.x);
+      nums[1] = String(parseFloat(nums[1]) + startDelta.y);
+    }
+    if(endDelta){
+      nums[nums.length-2] = String(parseFloat(nums[nums.length-2]) + endDelta.x);
+      nums[nums.length-1] = String(parseFloat(nums[nums.length-1]) + endDelta.y);
+    }
+    var i = 0;
+    var newD = d.replace(numberRe, function(){ return nums[i++]; });
+    path.setAttribute("d", newD);
+  }
+  function nodeNameFromId(id){
+    if(!id) return "";
+    var m = id.match(/^flowchart-(.+?)-\d+$/);
+    return m ? m[1] : id;
+  }
+  function findConnectedEdges(svg, nodeName){
+    if(!nodeName) return {outgoing: [], incoming: []};
+    var outgoing = [];
+    var incoming = [];
+    var paths = svg.querySelectorAll("g.edgePaths path, path.flowchart-link");
+    paths.forEach(function(p){
+      var cls = (p.getAttribute("class") || "").split(/\s+/);
+      var fromCls = null, toCls = null;
+      cls.forEach(function(c){
+        if(c.indexOf("LS-") === 0){ fromCls = c.substring(3); }
+        else if(c.indexOf("LE-") === 0){ toCls = c.substring(3); }
+      });
+      if(fromCls === nodeName){ outgoing.push(p); }
+      if(toCls === nodeName){ incoming.push(p); }
+    });
+    return {outgoing: outgoing, incoming: incoming};
+  }
+  function moveEdgeLabel(svg, nodeName, delta){
+    // labels are usually in g.edgeLabels and have labels per edge; we skip to avoid breakage.
+  }
+  function enableNodeDrag(svg, panZoom){
+    var nodes = svg.querySelectorAll("g.node");
+    nodes.forEach(function(node){
+      if(node.dataset.mmDragEnabled === "true") return;
+      node.dataset.mmDragEnabled = "true";
+      var nodeName = nodeNameFromId(node.getAttribute("id"));
+      var dragging = false;
+      var startClient = null;
+      var startOffset = null;
+      var edges = null;
+      var panEnabledBefore = true;
+      node.addEventListener("mousedown", function(ev){
+        if(ev.button !== 0) return;
+        dragging = true;
+        startClient = {x: ev.clientX, y: ev.clientY};
+        startOffset = parseTranslate(node.getAttribute("transform"));
+        edges = findConnectedEdges(svg, nodeName);
+        try { panEnabledBefore = panZoom.isPanEnabled(); panZoom.disablePan(); } catch(e){}
+        ev.stopPropagation();
+        ev.preventDefault();
+      });
+      var lastDelta = {x:0,y:0};
+      function onMove(ev){
+        if(!dragging) return;
+        var zoom = 1;
+        try { zoom = panZoom.getZoom() || 1; } catch(e){}
+        var dx = (ev.clientX - startClient.x) / zoom;
+        var dy = (ev.clientY - startClient.y) / zoom;
+        node.setAttribute("transform", "translate(" + (startOffset.x + dx) + "," + (startOffset.y + dy) + ")");
+        var frameDelta = {x: dx - lastDelta.x, y: dy - lastDelta.y};
+        if(edges){
+          edges.outgoing.forEach(function(p){ shiftPathEndpoints(p, frameDelta, null); });
+          edges.incoming.forEach(function(p){ shiftPathEndpoints(p, null, frameDelta); });
+        }
+        lastDelta = {x: dx, y: dy};
+      }
+      function onUp(){
+        if(!dragging) return;
+        dragging = false;
+        lastDelta = {x:0, y:0};
+        if(panEnabledBefore){ try { panZoom.enablePan(); } catch(e){} }
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  }
+  function enhanceContainer(container){
+    if(container.dataset.mmEnhanced === "true") return;
+    var mermaidDiv = container.querySelector(".mermaid");
+    if(!mermaidDiv) return;
+    if(mermaidDiv.getAttribute("data-processed") !== "true") return;
+    var svg = mermaidDiv.querySelector("svg");
+    if(!svg) return;
+    container.dataset.mmEnhanced = "true";
+    svg.removeAttribute("height");
+    svg.removeAttribute("width");
+    svg.style.width = "100%";
+    svg.style.height = "100%";
+    svg.style.maxWidth = "100%";
+    var panZoom = null;
+    try {
+      panZoom = svgPanZoom(svg, {
+        zoomEnabled: true,
+        controlIconsEnabled: false,
+        fit: true,
+        center: true,
+        minZoom: 0.2,
+        maxZoom: 10,
+        zoomScaleSensitivity: 0.35,
+        dblClickZoomEnabled: false,
+        preventMouseEventsDefault: false
+      });
+    } catch(err){
+      console.error("svg-pan-zoom init failed", err);
+      return;
+    }
+    var toolbar = container.querySelector(".mermaid-toolbar");
+    if(toolbar){
+      toolbar.addEventListener("click", function(ev){
+        var btn = ev.target.closest("[data-mermaid-action]");
+        if(!btn) return;
+        var action = btn.getAttribute("data-mermaid-action");
+        if(action === "zoom-in"){ panZoom.zoomBy(1.25); }
+        else if(action === "zoom-out"){ panZoom.zoomBy(0.8); }
+        else if(action === "reset"){ panZoom.resetZoom(); panZoom.center(); panZoom.fit(); }
+      });
+    }
+    svg.addEventListener("dblclick", function(ev){
+      if(ev.shiftKey){ panZoom.zoomBy(0.7); }
+      else { panZoom.zoomBy(1.4); }
+      ev.preventDefault();
+    });
+    enableNodeDrag(svg, panZoom);
+  }
+  function enhanceAll(scope){
+    var containers = (scope || document).querySelectorAll(".mermaid-container");
+    containers.forEach(enhanceContainer);
+  }
+  window.__enhanceMermaid = enhanceAll;
+  window.__renderMermaid = function(root){
+    if(!window.mermaid){return;}
+    var scope = root || document;
+    var nodes = Array.prototype.slice.call(scope.querySelectorAll(".mermaid"));
+    var targets = nodes.filter(function(n){
+      captureSource(n);
+      if(!isVisible(n)){return false;}
+      return n.getAttribute("data-processed") !== "true";
+    });
+    if(!targets.length){ enhanceAll(scope); return; }
+    try{
+      var result = window.mermaid.run({nodes: targets});
+      if(result && typeof result.then === "function"){
+        result.then(function(){ enhanceAll(scope); })
+              .catch(function(e){ console.error("mermaid run", e); });
+      } else {
+        setTimeout(function(){ enhanceAll(scope); }, 50);
+      }
+    }
+    catch(e){ console.error("mermaid run", e); }
+  };
+  function boot(){
+    if(!window.mermaid){return;}
+    try{
+      window.mermaid.initialize({startOnLoad:false,securityLevel:"loose",theme:"default",flowchart:{htmlLabels:true,curve:"basis"}});
+    }catch(e){ console.error("mermaid init", e); }
+    Array.prototype.forEach.call(document.querySelectorAll(".mermaid"), captureSource);
+    window.__renderMermaid();
+  }
+  if(document.readyState==="loading"){ document.addEventListener("DOMContentLoaded", boot); }
+  else{ boot(); }
+})();
+</script>
+""".strip()
 
 
 class HtmlReportWriter:
@@ -50,6 +260,16 @@ tr:nth-child(even) td { background: #f8fbff; }
 ul { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px 32px; }
 .empty { color: #64748b; font-style: italic; }
 .mermaid { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; overflow: auto; }
+.mermaid-container { margin: 14px 0; border: 1px solid #cbd5e1; border-radius: 10px; background: white; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,0.06); width: 100%; box-sizing: border-box; }
+.mermaid-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; background: #f1f5f9; }
+.mermaid-toolbar button.mm-btn { border: 1px solid #94a3b8; background: white; border-radius: 6px; padding: 3px 10px; cursor: pointer; font-weight: 600; color: #1e293b; min-width: 34px; line-height: 1.2; }
+.mermaid-toolbar button.mm-btn:hover { background: #dbeafe; border-color: #60a5fa; }
+.mermaid-toolbar .mm-hint { margin-left: auto; font-size: 0.78rem; color: #64748b; font-style: italic; }
+.mermaid-container .mermaid { border: none; border-radius: 0; padding: 0; margin: 0; width: 100%; height: 720px; max-height: 85vh; overflow: hidden; background: white; user-select: none; box-sizing: border-box; display: block; position: relative; }
+.mermaid-container .mermaid svg { width: 100% !important; height: 100% !important; max-width: none !important; display: block; }
+.mermaid-container .mermaid g.node { cursor: grab; }
+.mermaid-container .mermaid g.node:active { cursor: grabbing; }
+.tab-panel .mermaid-container { max-width: 100%; }
 code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 .smallcards .card { min-width: 150px; }
 .graph-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
@@ -286,6 +506,26 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         )
 
         mermaid = self._object_mermaid(item)
+        validation_rows = "".join(
+            f"<tr><td>{html_value(vr.full_name)}</td><td>{'Oui' if vr.active else 'Non'}</td>"
+            f"<td>{html_value(vr.description)}</td><td>{html_value(vr.error_display_field)}</td>"
+            f"<td>{html_value(vr.error_message)}</td></tr>"
+            for vr in item.validation_rules
+        ) or "<tr><td colspan='5' class='empty'>Aucune regle de validation detectee.</td></tr>"
+
+        validation_panels = []
+        for vr in item.validation_rules:
+            formula_html = f"<pre style='background:#f1f5f9; padding:12px; border-radius:6px; overflow:auto;'>{html_value(vr.error_condition_formula)}</pre>"
+            mermaid_tree = self._validation_rule_mermaid(vr)
+            validation_panels.append(
+                f"<div class='section'><h3>{html_value(vr.full_name)}</h3>"
+                f"<p><strong>Description:</strong> {html_value(vr.description or 'Non renseignee')}</p>"
+                f"<p><strong>Message d'erreur:</strong> {html_value(vr.error_message)}</p>"
+                f"<h4>Arbre de decision (Mermaid)</h4>{mermaid_tree}"
+                f"<h4>Formule</h4>{formula_html}</div>"
+            )
+        validation_content = "".join(validation_panels) or "<p class='empty'>Aucune regle de validation detaillee.</p>"
+
         relation_table = "".join(
             f"<tr><td>{html_value(rel.field_name)}</td><td>{html_value(rel.relationship_type)}</td>"
             f"<td>{html_value(', '.join(rel.targets))}</td></tr>"
@@ -303,6 +543,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                 ("Profiles", f"<table><thead><tr><th>Profile</th><th>Lecture</th><th>Creation</th><th>Modification</th><th>Suppression</th><th>Nb champs visibles</th><th>Nb champs modifiables</th></tr></thead><tbody>{profile_rows}</tbody></table>"),
                 ("Permission Sets", f"<table><thead><tr><th>Permission Set</th><th>Lecture</th><th>Creation</th><th>Modification</th><th>Suppression</th><th>Nb champs visibles</th><th>Nb champs modifiables</th></tr></thead><tbody>{permset_rows}</tbody></table>"),
                 ("Record Types", f"<table><thead><tr><th>Nom</th><th>Label</th><th>Description</th><th>Actif</th></tr></thead><tbody>{record_type_rows}</tbody></table>"),
+                ("Validation Rules", f"<table><thead><tr><th>Nom</th><th>Actif</th><th>Description</th><th>Champ d'erreur</th><th>Message d'erreur</th></tr></thead><tbody>{validation_rows}</tbody></table><hr/>{validation_content}"),
                 ("Relations", f"{mermaid}<table><thead><tr><th>Champ</th><th>Type</th><th>Cible</th></tr></thead><tbody>{relation_table}</tbody></table>"),
             ],
         )
@@ -468,10 +709,35 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
                     suffix = "\n..." if truncated else ""
                     preview_html = f"<pre>{html_value(preview_body + suffix)}</pre>"
 
+        msg_name = self._mermaid_label(name) or "Composant"
+        msg_type = self._mermaid_label(file_type) or "Type"
+        msg_sub = self._mermaid_label(subcategory) or "Sous-categorie"
+        msg_cat = self._mermaid_label(category_label) or "Categorie"
+
+        diagram_lines = [
+            "flowchart LR",
+            f'    Comp["{msg_name}"]',
+            f'    Type["Type : {msg_type}"]',
+            f'    Sub["Sous-categorie : {msg_sub}"]',
+            f'    Cat["Categorie : {msg_cat}"]',
+            "    Comp --> Type",
+            "    Comp --> Sub",
+            "    Comp --> Cat",
+        ]
+        omni_diagram = "\n".join(diagram_lines)
+        wrapped = self._wrap_mermaid_block(omni_diagram)
+        mermaid_graph = (
+            "<div class=\"section\">"
+            "<h3>Representation Graphique (OmniStudio)</h3>"
+            f"{wrapped}"
+            "</div>"
+        )
+
         tabs = self._tabbed_sections(
             f"omni-{safe_slug(subcategory)}-{safe_slug(name)}",
             [
                 ("Synthese", f"<ul>{meta_html}</ul>"),
+                ("Graphique", mermaid_graph),
                 ("Contenu", preview_html),
             ],
         )
@@ -482,7 +748,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 <span class="badge">{html_value(subcategory)}</span>
 {tabs}
 """
-        return self._page(name, body, current_path, include_mermaid=False)
+        return self._page(name, body, current_path, include_mermaid=True)
 
     def _render_index(
         self,
@@ -598,6 +864,8 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 <div class="cards">
   <div class="card"><span>Niveau de customisation</span><span class="value">{html_value(metrics.level)}</span></div>
   <div class="card"><span>Score</span><span class="value">{metrics.score}</span></div>
+  <div class="card"><span>Adopt vs Adapt</span><span class="value">{html_value(metrics.adopt_adapt_level)}</span></div>
+  <div class="card"><span>Score Adopt vs Adapt</span><span class="value">{metrics.adopt_adapt_score}</span></div>
   <div class="card"><span>Objets custom</span><span class="value">{metrics.custom_objects}</span></div>
   <div class="card"><span>Champs custom</span><span class="value">{metrics.custom_fields}</span></div>
   <div class="card"><span>Flows</span><span class="value">{metrics.flows}</span></div>
@@ -882,32 +1150,166 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
             )
         return "".join(rows)
 
+    def _wrap_mermaid_block(self, diagram_source: str) -> str:
+        return (
+            "<div class='mermaid-container'>"
+            "<div class='mermaid-toolbar'>"
+            "<button type='button' class='mm-btn' data-mermaid-action='zoom-in' title='Zoom avant'>+</button>"
+            "<button type='button' class='mm-btn' data-mermaid-action='zoom-out' title='Zoom arriere'>&minus;</button>"
+            "<button type='button' class='mm-btn' data-mermaid-action='reset' title='Reinitialiser la vue'>&#8634;</button>"
+            "<span class='mm-hint'>Glisser pour deplacer - Double-clic : zoom+ / Shift+double-clic : zoom-</span>"
+            "</div>"
+            f"<div class='mermaid'>\n{diagram_source}\n</div>"
+            "</div>"
+        )
+
+    def _mermaid_condition_label(self, text: str) -> str:
+        if not text:
+            return "Condition"
+        compact = " ".join(text.split())
+        if len(compact) > 70:
+            compact = compact[:67] + "..."
+        compact = compact.replace("&", "&amp;")
+        compact = compact.replace('"', "'")
+        compact = compact.replace("\\", "")
+        compact = compact.replace("|", "/")
+        compact = compact.replace("<", "&lt;")
+        compact = compact.replace(">", "&gt;")
+        compact = compact.replace("{", "(")
+        compact = compact.replace("}", ")")
+        compact = compact.replace("`", "'")
+        return compact.strip() or "Condition"
+
+    def _short_error_text(self, text: str, limit: int = 60) -> str:
+        raw = " ".join((text or "").split()).strip()
+        if not raw:
+            return ""
+        if len(raw) > limit:
+            raw = raw[: limit - 3] + "..."
+        raw = raw.replace("&", "&amp;")
+        raw = raw.replace('"', "'")
+        raw = raw.replace("<", "&lt;")
+        raw = raw.replace(">", "&gt;")
+        raw = raw.replace("|", "/")
+        return raw
+
+    def _validation_rule_mermaid(self, vr: ValidationRuleInfo) -> str:
+        if not vr.error_condition_formula:
+            return "<p class='empty'>Pas de formule pour generer l'arbre.</p>"
+
+        tree = parse_formula(vr.error_condition_formula)
+
+        msg = self._short_error_text(vr.error_message) or "Erreur levee"
+        display = self._short_error_text(vr.error_display_field) or "Formulaire"
+
+        state: dict[str, int] = {"c": 0}
+
+        def new_id(prefix: str = "N") -> str:
+            state["c"] += 1
+            return f"{prefix}{state['c']}"
+
+        lines: list[str] = ["flowchart TD"]
+        ok_id = "NodeOK"
+        err_id = "NodeERR"
+        start_id = "NodeSTART"
+
+        lines.append(f'    {start_id}(["Demande d\'enregistrement"])')
+        lines.append(f'    {ok_id}(["Enregistrement autorise"])')
+        lines.append(
+            f'    {err_id}(["Enregistrement refuse<br/><b>{msg}</b><br/>Champ : {display}"])'
+        )
+
+        def build(node: FormulaNode, true_target: str, false_target: str) -> str:
+            if node.kind == "NOT" and node.children:
+                return build(node.children[0], false_target, true_target)
+
+            if node.kind == "AND" and node.children:
+                entry = true_target
+                for child in reversed(node.children):
+                    entry = build(child, entry, false_target)
+                return entry
+
+            if node.kind == "OR" and node.children:
+                entry = false_target
+                for child in reversed(node.children):
+                    entry = build(child, true_target, entry)
+                return entry
+
+            if node.kind == "IF" and len(node.children) == 3:
+                cond, t_val, f_val = node.children
+                t_entry = build(t_val, true_target, false_target)
+                f_entry = build(f_val, true_target, false_target)
+                return build(cond, t_entry, f_entry)
+
+            cid = new_id("C")
+            label = self._mermaid_condition_label(node.text)
+            lines.append(f'    {cid}{{"{label}"}}')
+            lines.append(f'    {cid} -->|"VRAI"| {true_target}')
+            lines.append(f'    {cid} -->|"FAUX"| {false_target}')
+            return cid
+
+        entry_id = build(tree, err_id, ok_id)
+        lines.append(f"    {start_id} --> {entry_id}")
+
+        cond_nodes = [f"C{i}" for i in range(1, state["c"] + 1)]
+        if cond_nodes:
+            lines.append(
+                f"    class {','.join(cond_nodes)} condNode"
+            )
+        lines.append(f"    class {start_id} startNode")
+        lines.append(f"    class {ok_id} okNode")
+        lines.append(f"    class {err_id} koNode")
+        lines.append(
+            "    classDef startNode fill:#e0e7ff,stroke:#4338ca,color:#1e1b4b,stroke-width:2px;"
+        )
+        lines.append(
+            "    classDef condNode fill:#fef3c7,stroke:#d97706,color:#78350f;"
+        )
+        lines.append(
+            "    classDef okNode fill:#bbf7d0,stroke:#15803d,color:#14532d,stroke-width:2px;"
+        )
+        lines.append(
+            "    classDef koNode fill:#fecaca,stroke:#b91c1c,color:#7f1d1d,stroke-width:2px;"
+        )
+
+        diagram = "\n".join(lines)
+        return self._wrap_mermaid_block(diagram)
+
     def _object_mermaid(self, item: ObjectInfo) -> str:
         if not item.relationships:
             return "<p class='empty'>Aucune relation detectee.</p>"
 
         root_id = "n0"
-        lines = ["flowchart TD", f'    {root_id}["{self._mermaid_label(item.api_name)}"]']
-        target_ids: dict[str, str] = {}
+        root_label = self._mermaid_label(item.api_name) or "Objet"
+        lines = ["flowchart LR", f'    {root_id}["{root_label}"]']
+        target_ids: dict[str, str] = {root_label: root_id}
+        edges: list[str] = []
+        seen_edges: set[tuple[str, str, str]] = set()
         node_counter = 1
 
         for relationship in item.relationships:
+            rel_type = self._mermaid_label(relationship.relationship_type or "Relation")
+            field_name = self._mermaid_label(relationship.field_name or "")
             for target in relationship.targets:
-                label = self._mermaid_label(target or "Cible inconnue")
-                if label not in target_ids:
-                    target_ids[label] = f"n{node_counter}"
+                target_label = self._mermaid_label(target or "Cible inconnue") or "Cible"
+                if target_label not in target_ids:
+                    target_ids[target_label] = f"n{node_counter}"
                     node_counter += 1
-                    lines.append(f'    {target_ids[label]}["{label}"]')
-                # Keep edges simple for Mermaid robustness; details remain in relation table.
-                lines.append(f"    {root_id} --> {target_ids[label]}")
+                    lines.append(f'    {target_ids[target_label]}["{target_label}"]')
+
+                edge_label_parts = [part for part in (field_name, rel_type) if part]
+                edge_label = " - ".join(edge_label_parts) if edge_label_parts else "Relation"
+                edge_key = (root_id, target_ids[target_label], edge_label)
+                if edge_key in seen_edges:
+                    continue
+                seen_edges.add(edge_key)
+                edges.append(
+                    f'    {root_id} -->|"{edge_label}"| {target_ids[target_label]}'
+                )
+
+        lines.extend(edges)
         diagram = "\n".join(lines)
-        return f"""
-<script type="module">
-  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
-  mermaid.initialize({{ startOnLoad: true }});
-</script>
-<div class="mermaid">{diagram}</div>
-"""
+        return self._wrap_mermaid_block(diagram)
 
     def _mermaid_id(self, value: str) -> str:
         slug = safe_slug(value).replace("-", "_")
@@ -918,15 +1320,29 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
         return slug
 
     def _mermaid_label(self, value: str) -> str:
-        return (
-            str(value)
-            .replace('"', "'")
-            .replace("|", "/")
-            .replace("<", "(")
-            .replace(">", ")")
-            .replace("&", "et")
-            .replace("\n", " ")
-        )
+        text = "" if value is None else str(value)
+        replacements = [
+            ("\r", " "),
+            ("\n", " "),
+            ("\t", " "),
+            ("\\", " "),
+            ('"', ""),
+            ("'", ""),
+            ("`", ""),
+            ("|", " "),
+            ("<", " "),
+            (">", " "),
+            ("&", "et"),
+            ("[", "("),
+            ("]", ")"),
+            ("{", "("),
+            ("}", ")"),
+            ("#", ""),
+            (";", ","),
+        ]
+        for old, new in replacements:
+            text = text.replace(old, new)
+        return " ".join(text.split()).strip()
 
     def _list_or_empty(self, items: list[str], empty_text: str) -> str:
         if not items:
@@ -1491,10 +1907,29 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 
     def _page(self, title: str, body: str, current_path: Path, include_mermaid: bool = True) -> str:
         style_href = self._href(current_path, self.assets_dir / "style.css")
-        mermaid_script = "" if include_mermaid else ""
+        if include_mermaid:
+            mermaid_script = MERMAID_RUNTIME_SCRIPT
+        else:
+            mermaid_script = ""
         tabs_script = """
 <script>
 (() => {
+  const renderMermaidIn = (panel) => {
+    if (!panel) return;
+    const fn = window.__renderMermaid;
+    if (typeof fn === "function") {
+      fn(panel);
+      return;
+    }
+    if (!window.mermaid) return;
+    const nodes = Array.from(panel.querySelectorAll('.mermaid:not([data-processed="true"])'));
+    if (!nodes.length) return;
+    try {
+      window.mermaid.run({ nodes });
+    } catch (err) {
+      console.error("mermaid run (tab)", err);
+    }
+  };
   const activatePanel = (panel) => {
     if (!panel) return false;
     const group = panel.getAttribute("data-tab-panel");
@@ -1504,6 +1939,7 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
     panel.classList.add("active");
     const button = document.querySelector(`[data-tab-group="${group}"][data-tab-target="${panel.id}"]`);
     if (button) button.classList.add("active");
+    renderMermaidIn(panel);
     return true;
   };
   document.querySelectorAll("[data-tab-group]").forEach((button) => {

@@ -84,6 +84,8 @@ class SalesforceMetadataParser:
             apex_artifacts.extend(self._parse_apex_folder(package_root / "triggers", "trigger"))
             flows.extend(self._parse_flows(package_root / "flows"))
 
+            metrics.lwc_count += len(list((package_root / "lwc").glob("*")))
+            metrics.flexipage_count += len(list((package_root / "flexipages").glob("*.flexipage-meta.xml")))
             metrics.layouts += len(list((package_root / "layouts").glob("*.layout-meta.xml")))
             metrics.custom_tabs += len(
                 [
@@ -331,6 +333,8 @@ class SalesforceMetadataParser:
             active=to_bool(child_text(root, "active")),
             description=child_text(root, "description"),
             error_display_field=child_text(root, "errorDisplayField"),
+            error_message=child_text(root, "errorMessage"),
+            error_condition_formula=child_text(root, "errorConditionFormula"),
         )
 
     def _parse_security_folder(self, folder: Path, kind: str) -> list[SecurityArtifact]:
