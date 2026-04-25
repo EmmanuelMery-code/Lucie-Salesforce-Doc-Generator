@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import os
-from pathlib import Path
 import json
+import os
 import shutil
 import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
 
 from src.core.models import ApexArtifact, PmdViolation
+
+LogCallback = Callable[[str], None]
 
 
 @dataclass(slots=True)
@@ -19,9 +22,11 @@ class PmdRunResult:
 class PmdService:
     DEFAULT_RULESET = "category/apex/bestpractices.xml"
 
-    def __init__(self, workspace_dir: str | Path, log_callback=None) -> None:
+    def __init__(
+        self, workspace_dir: str | Path, log_callback: LogCallback | None = None
+    ) -> None:
         self.workspace_dir = Path(workspace_dir).resolve()
-        self.log = log_callback or (lambda message: None)
+        self.log: LogCallback = log_callback or (lambda message: None)
         self.executable = self._resolve_pmd_executable()
 
     def analyze_apex(

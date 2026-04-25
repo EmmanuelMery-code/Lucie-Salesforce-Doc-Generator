@@ -4,7 +4,9 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
+
+LogCallback = Callable[[str], None]
 
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -262,9 +264,11 @@ class WordReportWriter:
     callers specify.
     """
 
-    def __init__(self, language: str = "fr", log_callback=None) -> None:
+    def __init__(
+        self, language: str = "fr", log_callback: LogCallback | None = None
+    ) -> None:
         self.language = language if language in _LABELS else "fr"
-        self.log = log_callback or (lambda message: None)
+        self.log: LogCallback = log_callback or (lambda message: None)
 
     # ------------------------------------------------------------------ public API
 

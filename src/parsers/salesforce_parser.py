@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from collections import Counter
 import fnmatch
-from pathlib import Path
 import json
 import re
+from collections import Counter
+from pathlib import Path
+from typing import Callable
+
 from openpyxl import load_workbook
+
+LogCallback = Callable[[str], None]
 
 from src.core.models import (
     ApexArtifact,
@@ -30,6 +34,14 @@ from src.core.utils import SF_NS, child_text, child_texts, parse_xml, to_bool
 
 
 class SalesforceMetadataParser:
+    """Parse a Salesforce DX source folder into a :class:`MetadataSnapshot`.
+
+    Walks the well-known Salesforce metadata layout (objects, classes,
+    triggers, flows, profiles, permission sets, etc.), produces structured
+    Python dataclasses and applies an optional exclusion file so the caller
+    can opt out of specific artefacts.
+    """
+
     CATEGORY_ALIASES = {
         "all": "all",
         "global": "all",
@@ -51,13 +63,13 @@ class SalesforceMetadataParser:
         self,
         source_dir: str | Path,
         exclusion_config_path: str | Path | None = None,
-        log_callback=None,
+        log_callback: LogCallback | None = None,
     ) -> None:
         self.source_dir = Path(source_dir).resolve()
         self.exclusion_config_path = (
             Path(exclusion_config_path).resolve() if exclusion_config_path else None
         )
-        self.log = log_callback or (lambda message: None)
+        self.log: LogCallback = log_callback or (lambda message: None)
         self.exclusion_rules: dict[str, list[str]] = self._load_exclusion_rules(
             self.exclusion_config_path
         )

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 import json
 import shutil
 import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+LogCallback = Callable[[str], None]
 
 
 @dataclass(slots=True)
@@ -33,9 +36,11 @@ class OrgSummary:
 
 
 class SalesforceCliService:
-    def __init__(self, workspace_dir: str | Path, log_callback=None) -> None:
+    def __init__(
+        self, workspace_dir: str | Path, log_callback: LogCallback | None = None
+    ) -> None:
         self.workspace_dir = Path(workspace_dir).resolve()
-        self.log = log_callback or (lambda message: None)
+        self.log: LogCallback = log_callback or (lambda message: None)
         self.project_dir = self.workspace_dir / ".sf_cli_project"
         self.sf_executable = self._resolve_sf_executable()
         self._ensure_project()

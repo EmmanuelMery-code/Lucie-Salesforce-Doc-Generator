@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Callable
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from src.core.models import ObjectInfo, PmdViolation, SecurityArtifact
+
+LogCallback = Callable[[str], None]
 
 
 # Excel spec allows a theoretically unbounded number of sheets per workbook but
@@ -21,8 +24,15 @@ _FORBIDDEN_SHEET_CHARS_RE = re.compile(r"[:\\/?*\[\]]")
 
 
 class ExcelReportWriter:
-    def __init__(self, log_callback=None) -> None:
-        self.log = log_callback or (lambda message: None)
+    """Produce ``.xlsx`` documents from the parsed metadata snapshot.
+
+    Each ``write_*`` method writes one workbook (security, inventory, data
+    dictionary, PMD violations, ...) and returns the resulting path so the
+    orchestrator can collect all artefacts in :class:`GenerationResult`.
+    """
+
+    def __init__(self, log_callback: LogCallback | None = None) -> None:
+        self.log: LogCallback = log_callback or (lambda message: None)
 
     def write_security_workbook(
         self, artifacts: list[SecurityArtifact], output_path: str | Path, title: str

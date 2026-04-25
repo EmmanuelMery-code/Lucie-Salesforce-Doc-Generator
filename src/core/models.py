@@ -259,6 +259,13 @@ DEFAULT_ADOPT_ADAPT_WEIGHTS: dict[str, int] = {
 }
 
 
+# Score breakpoints used to derive a textual level from the raw score. The
+# tuple stores ``(low, medium, high)``: a score strictly below the first
+# value is the lowest level, and so on. Four levels are produced.
+DEFAULT_SCORING_THRESHOLDS: tuple[int, int, int] = (50, 150, 350)
+DEFAULT_ADOPT_ADAPT_THRESHOLDS: tuple[int, int, int] = (100, 300, 600)
+
+
 @dataclass(slots=True)
 class CustomizationMetrics:
     custom_objects: int = 0
@@ -279,6 +286,8 @@ class CustomizationMetrics:
     flexipage_count: int = 0
     weights: dict[str, int] | None = None
     adopt_adapt_weights: dict[str, int] | None = None
+    scoring_thresholds: tuple[int, int, int] | None = None
+    adopt_adapt_thresholds: tuple[int, int, int] | None = None
 
     def _weight(self, key: str) -> int:
         if self.weights is not None:
@@ -319,11 +328,13 @@ class CustomizationMetrics:
 
     @property
     def level(self) -> str:
-        if self.score < 50:
+        low, medium, high = self.scoring_thresholds or DEFAULT_SCORING_THRESHOLDS
+        score = self.score
+        if score < low:
             return "Faible"
-        if self.score < 150:
+        if score < medium:
             return "Moyen"
-        if self.score < 350:
+        if score < high:
             return "Eleve"
         return "Tres eleve"
 
@@ -345,12 +356,15 @@ class CustomizationMetrics:
 
     @property
     def adopt_adapt_level(self) -> str:
+        low, medium, high = (
+            self.adopt_adapt_thresholds or DEFAULT_ADOPT_ADAPT_THRESHOLDS
+        )
         score = self.adopt_adapt_score
-        if score < 100:
+        if score < low:
             return "Adopt (Standard)"
-        if score < 300:
+        if score < medium:
             return "Adapt (Low Customization)"
-        if score < 600:
+        if score < high:
             return "Adapt (Medium Customization)"
         return "Adapt (High Customization)"
 
