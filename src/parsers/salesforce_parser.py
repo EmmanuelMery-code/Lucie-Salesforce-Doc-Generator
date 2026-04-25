@@ -122,7 +122,7 @@ class SalesforceMetadataParser:
         snapshot.objects = [
             item
             for item in snapshot.objects
-            if not self._is_excluded("object", item.api_name)
+            if not self._is_excluded("object", item.api_name, item.label)
         ]
         snapshot.apex_artifacts = [
             item
@@ -132,7 +132,7 @@ class SalesforceMetadataParser:
         snapshot.flows = [
             item
             for item in snapshot.flows
-            if not self._is_excluded("flow", item.name)
+            if not self._is_excluded("flow", item.name, item.label)
         ]
         snapshot.inventory = self._build_inventory(snapshot)
 
@@ -203,16 +203,39 @@ class SalesforceMetadataParser:
             self.log(f"{total} regle(s) hors analyse chargee(s) depuis {config_path}.")
         return rules
 
-    def _is_excluded(self, category: str, name: str) -> bool:
+    def _is_excluded(self, category: str, *names: str) -> bool:
         candidates = self.exclusion_rules.get(category, []) + self.exclusion_rules.get("all", [])
-        lowered_name = name.lower()
+        if not candidates:
+            return False
+        targets = [name for name in names if name]
+        if not targets:
+            return False
+        # Try both the raw lowercased value and a normalized one (without
+        # spaces/underscores) so that an entry like "Approval Submission" in
+        # the exclusion file still matches the API name "ApprovalSubmission"
+        # and vice versa. Standard objects often expose a label with spaces
+        # while their API name omits them; users typically copy/paste either.
+        lowered_targets = [target.lower() for target in targets]
+        normalized_targets = [self._normalize_exclusion_token(target) for target in targets]
         for pattern in candidates:
             lowered_pattern = pattern.lower()
-            if fnmatch.fnmatch(lowered_name, lowered_pattern):
-                return True
-            if lowered_pattern in lowered_name:
-                return True
+            normalized_pattern = self._normalize_exclusion_token(pattern)
+            for lowered_target, normalized_target in zip(lowered_targets, normalized_targets):
+                if fnmatch.fnmatch(lowered_target, lowered_pattern):
+                    return True
+                if lowered_pattern in lowered_target:
+                    return True
+                if normalized_pattern and fnmatch.fnmatch(
+                    normalized_target, normalized_pattern
+                ):
+                    return True
+                if normalized_pattern and normalized_pattern in normalized_target:
+                    return True
         return False
+
+    @staticmethod
+    def _normalize_exclusion_token(value: str) -> str:
+        return re.sub(r"[\s_]+", "", value or "").lower()
 
     def _build_inventory(self, snapshot: MetadataSnapshot) -> dict[str, list[dict[str, object]]]:
         return {

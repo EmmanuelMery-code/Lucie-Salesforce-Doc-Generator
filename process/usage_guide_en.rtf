@@ -1,0 +1,129 @@
+{\rtf1\ansi\ansicpg1252\deff0\nouicompat\deflang1036
+{\fonttbl{\f0\fnil\fcharset0 Calibri;}{\f1\fnil\fcharset0 Consolas;}}
+{\colortbl ;\red0\green0\blue0;\red0\green70\blue140;\red80\green80\blue80;\red200\green80\blue40;}
+{\*\generator Lucie Process Doc;}\viewkind4\uc1
+\paperw11906\paperh16838\margl1134\margr1134\margt1134\margb1134
+\pard\sa120\sl276\slmult1\f0\fs22 \pard\sb240\sa120\keepn\f0\fs40\b\cf2 Lucie: Salesforce Doc Generator\b0\cf1\fs22\par
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 Usage guide for Squads, Tech Leads and the Design Review\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 This document explains step-by-step how Squads, Tech Leads and the Design Review use Lucie to produce, share and leverage a high-quality Salesforce documentation. It emphasises the benefits brought by the tool and the collaborative aspect across the team.\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 1. Overview\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Lucie is an internal tool that analyses a Salesforce org and produces: a complete HTML documentation (objects, Apex, Flows, OmniStudio, permissions), detailed Excel workbooks (data dictionary, profiles, permission sets, inventory, PMD violations) and two Word documents (a data dictionary and a summary holding prioritised advice).\par
+\pard\sa120\sl276\slmult1\fs22 Three audiences use Lucie:\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Squads: to quickly explore the metadata, prepare a story or validate the impact of a delivery.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Tech Leads: to drive technical quality, follow the org evolution sprint after sprint and feed cross-cutting reviews.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Design Review: to rely on a standardised support to arbitrate and prioritise the actions to take.\par
+\pard\sa120\sl276\slmult1\fs22 The generated documentation is centralised in a shared folder so everyone works on the same body of knowledge.\par
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 2. Key benefits\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Automated, standardised documentation: no more manual maintenance of the data dictionary, the Apex/Flow pages or the permission set list.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Prioritised advice: the Word summary lists actions sorted by severity then by occurrence count. The most impactful items appear first.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Adopt vs Adapt score: a synthetic indicator to compare the level of customisation across orgs or over time.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Anti-pattern detection: static analysis rules inspired by PMD, the Salesforce Well-Architected Framework and the Architect Decision Guides.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Multilingual: generation in French or English depending on the UI language.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Built-in AI assistant: discuss the analysed org with Claude or Gemini.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Native collaboration: shareable configuration (weights, rules, exclusions), shared output folder, format suited to meeting minutes.\par
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 3. Setup and shared configuration\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Before rolling Lucie out to the Squads, the technical owner sets up a shared reference configuration.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 3.1 Installation\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 1.\tab Clone the repository.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 2.\tab Install dependencies: pip install -r requirements.txt.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 3.\tab (Optional) Install Salesforce CLI (sf) and PMD for the built-in features.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 4.\tab Run the application: python app.py.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 3.2 Shared configuration\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 In the configuration screen, the team agrees on:\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab The shared output folder (network share, OneDrive or SharePoint accessible to every Squad).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab The exclusion file (exclusion.xlsx), versioned and used by every Squad to homogenise results.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab The PMD ruleset (optional), versioned in the same shared repository.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab The static analysis rules (rules.xml): validate the enabled rules through the "Analysis rules" tab.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Scoring weights and Adopt vs Adapt weights: standardised, otherwise scores stop being comparable across Squads.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab The interface language (FR or EN), which drives the language of the generated Word documents.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab The "Generate the Data Dictionary Word document" and "Generate the summary Word document" toggles: ticked by default, leave them on so Design Review has its inputs.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab AI API keys (Claude, Gemini): personal, kept in each user's individual configuration.\par
+\pard\sa120\sl276\slmult1\li567\ri567\i\cf3\fs22 Tip: versioning exclusion.xlsx, rules.xml and the PMD ruleset in a shared Git repository ensures consistent analyses across all Squads.\i0\cf1\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 4. How Squads use the tool\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Each Squad uses Lucie for everyday needs: exploring the org, preparing a story, auditing before a release.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 4.1 Standard run\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 1.\tab Open Lucie via python app.py.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 2.\tab Pick the source folder (Salesforce retrieve output or clone of the Squad repo).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 3.\tab Pick the shared output folder, in a Squad-specific dated subfolder (e.g. \\\\share\\lucie\\squad-alpha\\2026-04-25).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 4.\tab Load the Salesforce org: either via Web login + alias then Generate manifest and Run retrieve, or directly via the Manifest + Retrieve + Doc button which chains everything.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 5.\tab Click Generate documentation.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 6.\tab Open the HTML index and explore the generated docs.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 4.2 Recommended use cases\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Onboarding a new joiner: the HTML documentation provides an instant map of the org (objects, flows, Apex classes, permissions).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Preparing a story: open the data dictionary Word document or the page of the impacted object to identify existing fields, record types and rules.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Pre-release audit: generate the docs before delivery and compare the Word summary with the previous run to spot new findings.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Quick check: ask the AI assistant (Discussion tab) about the org instead of digging through code.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 4.3 Squad guidelines\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Run the generation before each sprint review to have a stable baseline.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Store the documentation in the shared folder: other Squads and Design Review will rely on it.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab React quickly to the Critical and Major findings of the Word summary; they are the first to surface in Design Review.\par
+\pard\sa160\sb160\li360\ri360\b\cf4\fs24 [DIAGRAM PLACEHOLDER 1: Squad workflow - insert here the PNG or PDF export of squad_workflow.drawio.]\b0\cf1\fs22\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 5. How Tech Leads use the tool\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 The Tech Lead drives the technical quality of their Squad and feeds the cross-cutting reviews led by the manager.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 5.1 Tooling responsibilities\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Maintain the shared configuration (analysis rules, exclusion file, scoring weights).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Make sure the Squad generates the documentation at least once per sprint.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Review the findings raised and organise their treatment with the Squad.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Surface to the manager the topics that go beyond the Squad boundaries and deserve a Design Review.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 5.2 Typical sprint workflow\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 1.\tab Beginning of sprint: pull the latest generation stored in the shared folder as a reference baseline.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 2.\tab During the sprint: launch an intermediate analysis on a major refactor (new object, Apex refactor, Flow migration).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 3.\tab End of sprint: generate the full documentation and archive it in the shared folder (dated subfolder).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 4.\tab Prepare the retrospective / sprint review: pull the 3 to 5 highest-priority actions from the Word summary.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 5.\tab Prepare the Design Review: surface to the manager the cross-cutting findings and arbitration topics.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 5.3 Indicators to watch\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Customisation score evolution sprint after sprint.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Adopt vs Adapt score evolution.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Findings volume per severity (Critical, Major, Minor, Info).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Top 5 triggered rules, visible in the Advice chapter of the Word summary.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Number of objects and fields actually documented (data dictionary).\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 6. Use in Design Review\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 The Design Review combines outputs produced by every Squad to take coordinated architecture decisions. This is where the Word summary and its Advice chapter shine.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 6.1 Before the meeting\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 1.\tab The manager (Design Review host) gathers from the shared folder the summary.docx of every Squad, the matching data_dictionary.docx and the HTML index for technical details.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 2.\tab Preliminary read of the Advice chapter of every summary.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 3.\tab Selection of actions to debate, prioritising Critical and Major ones.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 4.\tab Building the agenda from that selection.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 6.2 During the meeting\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 1.\tab Walk through the Word summary: cover page, overview, customisation metrics, then Advice chapter.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 2.\tab For each priority action, discuss the finding with the concerned Squad.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 3.\tab Decide the action: fix now, documented exception or deferred with deadline.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 4.\tab Assign the responsible Squad and action owner.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 5.\tab If needed, open the data dictionary Word document or HTML documentation to double-check a technical detail.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 6.\tab Capture each decision in the meeting minutes by quoting the rule identifier (for example APEX-SEC-001).\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 6.3 After the meeting\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Store the meeting minutes next to the analysed documentation in the shared folder.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Minutes refer to findings from the Word summary, which makes decisions replayable.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab At the next Design Review, verify the decrease in occurrence count for every treated finding and acknowledge the Squads that progressed.\par
+\pard\sa160\sb160\li360\ri360\b\cf4\fs24 [DIAGRAM PLACEHOLDER 2: Design Review workflow - insert here the PNG or PDF export of design_review_workflow.drawio.]\b0\cf1\fs22\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 7. Collaborative aspect and shared folder\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 The tool delivers its full value when shared and when every actor works from the same reference folder.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 7.1 Suggested layout\b0\cf1\fs22\par
+\pard\sa60\sl240\slmult1\li360\f1\fs20\cf4 \\\\share\\lucie\\\line +-- _config\\\line |   +-- exclusion.xlsx\line |   +-- rules.xml\line |   +-- pmd_ruleset.xml\line +-- squad-alpha\\\line |   +-- 2026-04-11\\\line |   |   +-- index.html\line |   |   +-- excel\\...\line |   |   +-- word\\data_dictionary.docx\line |   |   +-- word\\summary.docx\line |   +-- 2026-04-25\\\line +-- squad-beta\\\line +-- design-review\\\line     +-- 2026-04-15-minutes.docx\line     +-- 2026-04-29-minutes.docx\line \f0\fs22\cf1\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 7.2 Collaborative benefits\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Single view: everyone reads the same data and the same rules.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Capitalisation: the generation history works as the collective memory of the org.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Comparison: Tech Leads can compare their Squad with others on the same basis.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Traceable decisions: Design Review minutes refer to rule identifiers, making arbitrations replayable.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Easier communication: the Word documents can be shared with non-technical stakeholders (Product Owners, Architects, Sponsors).\par
+\pard\sa160\sb160\li360\ri360\b\cf4\fs24 [DIAGRAM PLACEHOLDER 3: Collaborative view - insert here the PNG or PDF export of collaboration_overview.drawio.]\b0\cf1\fs22\par
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 8. Best practices\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Refresh the docs after each major change (new module, object refactor, important batch).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Version the shared configuration (exclusion.xlsx, rules.xml, pmd_ruleset.xml).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Name the generation subfolders with an ISO date YYYY-MM-DD to ease sorting.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Limit the use of the exclusion file: it must reflect architecture decisions, not hide problems.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Agree on scoring weights upfront: a score is only meaningful against a shared reference.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Store Design Review minutes alongside the analysed documentation for traceability.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Run a full cycle (generation + Design Review + fix) at least once per release.\par
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 9. Appendices - associated diagrams\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Three drawio diagrams ship in this folder. Insert them where the PLACEHOLDER blocks appear above:\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab squad_workflow.drawio: Squad workflow over a sprint.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab design_review_workflow.drawio: Design Review flow.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab collaboration_overview.drawio: high-level view of the collaboration between Squads, Tech Leads and Design Review.\par
+\pard\sa120\sl276\slmult1\fs22 How to open them: use https://app.diagrams.net or the Draw.io Integration extension for Visual Studio Code. Export as PNG or PDF and replace the PLACEHOLDER blocks with the matching image.\par
+}

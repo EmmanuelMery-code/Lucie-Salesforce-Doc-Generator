@@ -154,6 +154,12 @@ class Application(tk.Tk):
         self.generate_org_check_reports_var = tk.BooleanVar(
             value=bool(self.settings.get("generate_org_check_reports", False))
         )
+        self.generate_data_dictionary_word_var = tk.BooleanVar(
+            value=bool(self.settings.get("generate_data_dictionary_word", True))
+        )
+        self.generate_summary_word_var = tk.BooleanVar(
+            value=bool(self.settings.get("generate_summary_word", True))
+        )
 
         self.hero_image: tk.PhotoImage | None = None
         self.icon_image: tk.PhotoImage | None = None
@@ -230,8 +236,13 @@ class Application(tk.Tk):
                 pmd_enabled=bool(self.pmd_enabled_var.get()),
                 pmd_ruleset_path=pmd_ruleset,
                 generate_excels=generate_excels,
+                generate_data_dictionary_word=bool(
+                    self.generate_data_dictionary_word_var.get()
+                ),
+                generate_summary_word=bool(self.generate_summary_word_var.get()),
                 scoring_weights=dict(self.scoring_weights),
                 adopt_adapt_weights=dict(self.adopt_adapt_weights),
+                language=self.language,
                 log_callback=self._queue_log,
             ).generate()
 
@@ -284,8 +295,13 @@ class Application(tk.Tk):
                 pmd_enabled=bool(self.pmd_enabled_var.get()),
                 pmd_ruleset_path=pmd_ruleset,
                 generate_excels=generate_excels,
+                generate_data_dictionary_word=bool(
+                    self.generate_data_dictionary_word_var.get()
+                ),
+                generate_summary_word=bool(self.generate_summary_word_var.get()),
                 scoring_weights=dict(self.scoring_weights),
                 adopt_adapt_weights=dict(self.adopt_adapt_weights),
+                language=self.language,
                 log_callback=self._queue_log,
             ).generate()
 
@@ -741,6 +757,32 @@ class Application(tk.Tk):
 
     def _build_menu_bar(self) -> None:
         menu_bar = tk.Menu(self)
+
+        # The Documentation menu is intentionally added first so it sits on
+        # the leftmost side of the menu bar. It mirrors the main "Generate"
+        # button while exposing per-output shortcuts (Excels, HTML, Word).
+        documentation_menu = tk.Menu(menu_bar, tearoff=False)
+        documentation_menu.add_command(
+            label=self._t("menu_generate_documentation"),
+            command=self._menu_generate_documentation,
+        )
+        documentation_menu.add_separator()
+        documentation_menu.add_command(
+            label=self._t("menu_generate_excels"),
+            command=self._menu_generate_excels,
+        )
+        documentation_menu.add_command(
+            label=self._t("menu_generate_html"),
+            command=self._menu_generate_html,
+        )
+        documentation_menu.add_command(
+            label=self._t("menu_generate_word"),
+            command=self._menu_generate_word,
+        )
+        menu_bar.add_cascade(
+            label=self._t("documentation_menu"), menu=documentation_menu
+        )
+
         download_menu = tk.Menu(menu_bar, tearoff=False)
         download_menu.add_command(
             label=self._t("download_sf_cli"),
@@ -781,6 +823,22 @@ class Application(tk.Tk):
     def _open_external_url(self, url: str) -> None:
         webbrowser.open_new_tab(url)
 
+    def _configure_secondary_window(self, window: tk.Toplevel) -> None:
+        # Ensure every secondary window keeps its minimize/maximize buttons
+        # (calling ``transient`` on Windows turns the window into a dialog and
+        # strips those controls). We also force a regular, resizable window
+        # frame and reuse the application icon for visual consistency.
+        window.resizable(True, True)
+        try:
+            window.wm_attributes("-toolwindow", False)
+        except tk.TclError:
+            pass
+        if self.icon_image is not None:
+            try:
+                window.iconphoto(False, self.icon_image)
+            except tk.TclError:
+                pass
+
     def _show_configuration_screen(self) -> None:
         existing = self.configuration_window
         if existing is not None and existing.winfo_exists():
@@ -792,7 +850,7 @@ class Application(tk.Tk):
         window = tk.Toplevel(self)
         window.title(self._t("configuration_title"))
         window.geometry("980x720")
-        window.transient(self)
+        self._configure_secondary_window(window)
 
         # Add scrollbar support
         container = ttk.Frame(window)
@@ -854,6 +912,12 @@ class Application(tk.Tk):
             "generate_excels": tk.BooleanVar(value=bool(self.generate_excels_var.get())),
             "generate_org_check_reports": tk.BooleanVar(
                 value=bool(self.generate_org_check_reports_var.get())
+            ),
+            "generate_data_dictionary_word": tk.BooleanVar(
+                value=bool(self.generate_data_dictionary_word_var.get())
+            ),
+            "generate_summary_word": tk.BooleanVar(
+                value=bool(self.generate_summary_word_var.get())
             ),
         }
 
@@ -930,6 +994,16 @@ class Application(tk.Tk):
             reports,
             text=self._t("configuration_generate_org_check_reports"),
             variable=edit_vars["generate_org_check_reports"],
+        ).pack(anchor="w", pady=(2, 2))
+        ttk.Checkbutton(
+            reports,
+            text=self._t("configuration_generate_data_dictionary_word"),
+            variable=edit_vars["generate_data_dictionary_word"],
+        ).pack(anchor="w", pady=(2, 2))
+        ttk.Checkbutton(
+            reports,
+            text=self._t("configuration_generate_summary_word"),
+            variable=edit_vars["generate_summary_word"],
         ).pack(anchor="w", pady=(2, 2))
 
     def _build_configuration_discussion_tab(
@@ -1562,6 +1636,12 @@ class Application(tk.Tk):
         self.generate_org_check_reports_var.set(
             bool(edit_vars["generate_org_check_reports"].get())
         )
+        self.generate_data_dictionary_word_var.set(
+            bool(edit_vars["generate_data_dictionary_word"].get())
+        )
+        self.generate_summary_word_var.set(
+            bool(edit_vars["generate_summary_word"].get())
+        )
 
         if self._config_system_prompt_widget is not None:
             prompt_text = self._config_system_prompt_widget.get("1.0", "end").strip()
@@ -1613,7 +1693,7 @@ class Application(tk.Tk):
         window = tk.Toplevel(self)
         window.title(self._t("scoring_title"))
         window.geometry("820x680")
-        window.transient(self)
+        self._configure_secondary_window(window)
 
         # Add scrollbar support
         outer_container = ttk.Frame(window)
@@ -1863,7 +1943,7 @@ class Application(tk.Tk):
         window = tk.Toplevel(self)
         window.title(self._t("adopt_adapt_title"))
         window.geometry("820x680")
-        window.transient(self)
+        self._configure_secondary_window(window)
 
         # Add scrollbar support
         outer_container = ttk.Frame(window)
@@ -2180,6 +2260,10 @@ class Application(tk.Tk):
             "system_prompt": self.system_prompt,
             "generate_excels": bool(self.generate_excels_var.get()),
             "generate_org_check_reports": bool(self.generate_org_check_reports_var.get()),
+            "generate_data_dictionary_word": bool(
+                self.generate_data_dictionary_word_var.get()
+            ),
+            "generate_summary_word": bool(self.generate_summary_word_var.get()),
             "scoring_weights": dict(self.scoring_weights),
             "adopt_adapt_weights": dict(self.adopt_adapt_weights),
         }
@@ -2538,7 +2622,12 @@ class Application(tk.Tk):
                 pmd_enabled=bool(self.pmd_enabled_var.get()),
                 pmd_ruleset_path=pmd_ruleset,
                 generate_excels=generate_excels,
+                generate_data_dictionary_word=bool(
+                    self.generate_data_dictionary_word_var.get()
+                ),
+                generate_summary_word=bool(self.generate_summary_word_var.get()),
                 scoring_weights=dict(self.scoring_weights),
+                language=self.language,
                 log_callback=self._queue_log,
             ).generate()
 
@@ -2590,7 +2679,18 @@ class Application(tk.Tk):
             return None
         return output
 
-    def _start_generation(self) -> None:
+    def _start_generation(
+        self,
+        *,
+        generate_html_override: bool | None = None,
+        generate_excels_override: bool | None = None,
+        generate_data_dictionary_word_override: bool | None = None,
+        generate_summary_word_override: bool | None = None,
+    ) -> None:
+        # Overrides are used by the Documentation menu to force a single
+        # output type regardless of what the user ticked in the
+        # configuration screen. ``None`` means "fall back to the configured
+        # value", which is the behaviour of the main "Generate" button.
         source_value = self.source_var.get().strip()
 
         if not source_value:
@@ -2618,7 +2718,24 @@ class Application(tk.Tk):
         if self.pmd_enabled_var.get() and self.pmd_ruleset_var.get().strip() and pmd_ruleset is None:
             return
 
-        generate_excels = bool(self.generate_excels_var.get())
+        generate_excels = (
+            bool(self.generate_excels_var.get())
+            if generate_excels_override is None
+            else generate_excels_override
+        )
+        generate_html = (
+            True if generate_html_override is None else generate_html_override
+        )
+        generate_dd_word = (
+            bool(self.generate_data_dictionary_word_var.get())
+            if generate_data_dictionary_word_override is None
+            else generate_data_dictionary_word_override
+        )
+        generate_summary_word = (
+            bool(self.generate_summary_word_var.get())
+            if generate_summary_word_override is None
+            else generate_summary_word_override
+        )
         generate_org_check = bool(self.generate_org_check_reports_var.get())
         org_check_choice = self.org_check_choice_var.get().strip()
         selected_org = self._selected_org()
@@ -2635,7 +2752,11 @@ class Application(tk.Tk):
                 pmd_enabled=bool(self.pmd_enabled_var.get()),
                 pmd_ruleset_path=pmd_ruleset,
                 generate_excels=generate_excels,
+                generate_html=generate_html,
+                generate_data_dictionary_word=generate_dd_word,
+                generate_summary_word=generate_summary_word,
                 scoring_weights=dict(self.scoring_weights),
+                language=self.language,
                 log_callback=self._queue_log,
             ).generate()
 
@@ -2644,6 +2765,35 @@ class Application(tk.Tk):
             task=task,
             success_message=self._t("doc_done"),
             on_success=self._on_generation_result,
+        )
+
+    def _menu_generate_documentation(self) -> None:
+        # Same behaviour as the main "Generate documentation" button: it
+        # uses whatever the user configured in the configuration screen.
+        self._start_generation()
+
+    def _menu_generate_excels(self) -> None:
+        self._start_generation(
+            generate_html_override=False,
+            generate_excels_override=True,
+            generate_data_dictionary_word_override=False,
+            generate_summary_word_override=False,
+        )
+
+    def _menu_generate_html(self) -> None:
+        self._start_generation(
+            generate_html_override=True,
+            generate_excels_override=False,
+            generate_data_dictionary_word_override=False,
+            generate_summary_word_override=False,
+        )
+
+    def _menu_generate_word(self) -> None:
+        self._start_generation(
+            generate_html_override=False,
+            generate_excels_override=False,
+            generate_data_dictionary_word_override=True,
+            generate_summary_word_override=True,
         )
 
     def _run_org_check_pre_step(

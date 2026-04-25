@@ -269,7 +269,17 @@ class ExcelReportWriter:
         output_base = Path(output_dir)
         output_base.mkdir(parents=True, exist_ok=True)
 
-        if not objects:
+        # Skip objects that do not declare any field: their per-object sheet
+        # would otherwise be empty (just the "Aucun champ detecte" hint) and
+        # they pollute the Synthese sheet without bringing documentation value.
+        documented_objects = [obj for obj in objects if obj.fields]
+        skipped_count = len(objects) - len(documented_objects)
+        if skipped_count > 0:
+            self.log(
+                f"Data Dictionary : {skipped_count} objet(s) sans champ ignore(s)."
+            )
+
+        if not documented_objects:
             # Still produce an (almost) empty workbook so that the index page
             # and the HTML preview pipeline expose the absence of data clearly.
             path = output_base / "data_dictionary.xlsx"
@@ -286,7 +296,7 @@ class ExcelReportWriter:
             return [path]
 
         ordered_objects = sorted(
-            objects, key=lambda obj: (obj.api_name or "").lower()
+            documented_objects, key=lambda obj: (obj.api_name or "").lower()
         )
         chunks: list[list[ObjectInfo]] = [
             ordered_objects[index : index + max_object_sheets]

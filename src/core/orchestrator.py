@@ -9,6 +9,7 @@ from src.parsers.salesforce_parser import SalesforceMetadataParser
 from src.core.pmd_service import PmdService
 from src.reporting.excel_writer import ExcelReportWriter
 from src.reporting.html_writer import HtmlReportWriter
+from src.reporting.word_writer import WordReportWriter
 from src.reviewers.heuristics import review_apex_artifact, review_flow
 
 
@@ -21,9 +22,13 @@ class SalesforceDocumentationGenerator:
         pmd_enabled: bool = False,
         pmd_ruleset_path: str | Path | None = None,
         generate_excels: bool = True,
+        generate_html: bool = True,
+        generate_data_dictionary_word: bool = True,
+        generate_summary_word: bool = True,
         scoring_weights: dict[str, int] | None = None,
         adopt_adapt_weights: dict[str, int] | None = None,
         analyzer_rules_path: str | Path | None = None,
+        language: str = "fr",
         log_callback=None,
     ) -> None:
         self.source_dir = Path(source_dir).resolve()
@@ -34,14 +39,28 @@ class SalesforceDocumentationGenerator:
         self.pmd_enabled = pmd_enabled
         self.pmd_ruleset_path = Path(pmd_ruleset_path).resolve() if pmd_ruleset_path else None
         self.generate_excels = generate_excels
+        self.generate_html = generate_html
+        self.generate_data_dictionary_word = generate_data_dictionary_word
+        self.generate_summary_word = generate_summary_word
         self.scoring_weights = scoring_weights
         self.adopt_adapt_weights = adopt_adapt_weights
         self.analyzer_rules_path = (
             Path(analyzer_rules_path).resolve() if analyzer_rules_path else None
         )
+        # Language drives the localisation of the Word documents we generate
+        # (data dictionary + summary). Falls back to French if the value is
+        # not one of the supported codes.
+        self.language = language if language in {"fr", "en"} else "fr"
         self.log = log_callback or (lambda message: None)
 
     def _safe_excel(self, label: str, producer):
+        try:
+            return producer()
+        except Exception as exc:
+            self.log(f"Echec generation {label}: {exc}")
+            return None
+
+    def _safe_word(self, label: str, producer):
         try:
             return producer()
         except Exception as exc:
@@ -106,8 +125,16 @@ class SalesforceDocumentationGenerator:
         else:
             self.log("Generation des Excels desactivee dans la configuration.")
 
-        html_writer = HtmlReportWriter(self.output_dir, log_callback=self.log)
-        html_writer.write_assets()
+        # The HTML writer is only spun up (and its static assets copied)
+        # when the HTML output is actually requested. The reviews and PMD
+        # data still flow through the analyzer below so the Word summary
+        # has everything it needs even when HTML generation is disabled.
+        html_writer: HtmlReportWriter | None = None
+        if self.generate_html:
+            html_writer = HtmlReportWriter(self.output_dir, log_callback=self.log)
+            html_writer.write_assets()
+        else:
+            self.log("Generation HTML desactivee dans la configuration.")
 
         apex_reviews = {artifact.name: review_apex_artifact(artifact) for artifact in snapshot.apex_artifacts}
         flow_reviews = {flow.name: review_flow(flow) for flow in snapshot.flows}
@@ -147,34 +174,73 @@ class SalesforceDocumentationGenerator:
         finding_total = len(analyzer_report.all_findings())
         self.log(f"Analyseur : {finding_total} finding(s) detecte(s).")
 
-        object_pages = html_writer.write_object_pages(
-            snapshot, analyzer_report=analyzer_report
-        )
-        apex_pages = html_writer.write_apex_pages(
-            snapshot, apex_reviews, pmd_by_artifact, analyzer_report=analyzer_report
-        )
-        flow_pages = html_writer.write_flow_pages(
-            snapshot,
-            flow_reviews,
-            object_pages,
-            apex_pages,
-            analyzer_report=analyzer_report,
-        )
-        omni_pages = html_writer.write_omni_pages(
-            snapshot, analyzer_report=analyzer_report
-        )
-        excel_preview_pages = html_writer.write_excel_preview_pages()
-        index_path = html_writer.write_index(
-            snapshot,
-            object_pages,
-            apex_pages,
-            flow_pages,
-            apex_reviews,
-            flow_reviews,
-            pmd_by_artifact,
-            omni_pages=omni_pages,
-            analyzer_report=analyzer_report,
-        )
+        # Word documents are only emitted when the user opted in via the
+        # configuration screen (both flags are checked by default). We also
+        # only spin up the writer if at least one of them is enabled to
+        # avoid creating an unused output directory.
+        data_dictionary_word = None
+        summary_word = None
+        if self.generate_data_dictionary_word or self.generate_summary_word:
+            word_dir = self.output_dir / "word"
+            word_writer = WordReportWriter(
+                language=self.language, log_callback=self.log
+            )
+            if self.generate_data_dictionary_word:
+                data_dictionary_word = self._safe_word(
+                    "data_dictionary.docx",
+                    lambda: word_writer.write_data_dictionary_document(
+                        snapshot, word_dir / "data_dictionary.docx"
+                    ),
+                )
+            else:
+                self.log("Generation du Data Dictionary Word desactivee.")
+            if self.generate_summary_word:
+                summary_word = self._safe_word(
+                    "summary.docx",
+                    lambda: word_writer.write_summary_document(
+                        snapshot, analyzer_report, word_dir / "summary.docx"
+                    ),
+                )
+            else:
+                self.log("Generation du resume Word desactivee.")
+        else:
+            self.log("Generation des documents Word desactivee.")
+
+        object_pages: dict = {}
+        apex_pages: dict = {}
+        flow_pages: dict = {}
+        omni_pages: dict = {}
+        excel_preview_pages: dict = {}
+        index_path: Path | None = None
+        if self.generate_html and html_writer is not None:
+            object_pages = html_writer.write_object_pages(
+                snapshot, analyzer_report=analyzer_report
+            )
+            apex_pages = html_writer.write_apex_pages(
+                snapshot, apex_reviews, pmd_by_artifact, analyzer_report=analyzer_report
+            )
+            flow_pages = html_writer.write_flow_pages(
+                snapshot,
+                flow_reviews,
+                object_pages,
+                apex_pages,
+                analyzer_report=analyzer_report,
+            )
+            omni_pages = html_writer.write_omni_pages(
+                snapshot, analyzer_report=analyzer_report
+            )
+            excel_preview_pages = html_writer.write_excel_preview_pages()
+            index_path = html_writer.write_index(
+                snapshot,
+                object_pages,
+                apex_pages,
+                flow_pages,
+                apex_reviews,
+                flow_reviews,
+                pmd_by_artifact,
+                omni_pages=omni_pages,
+                analyzer_report=analyzer_report,
+            )
 
         self.log("Generation terminee.")
         return {
@@ -183,6 +249,8 @@ class SalesforceDocumentationGenerator:
             "profile_excel": profile_excel,
             "inventory_excel": inventory_excel,
             "data_dictionary_excels": data_dictionary_excels,
+            "data_dictionary_word": data_dictionary_word,
+            "summary_word": summary_word,
             "pmd_excel": pmd_excel,
             "index": index_path,
             "object_pages": object_pages,
