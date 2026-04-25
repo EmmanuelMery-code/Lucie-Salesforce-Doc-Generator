@@ -518,11 +518,11 @@ class Application(tk.Tk):
         )
         download_menu.add_command(
             label=self._t("ORG CHECK app exchange"),
-            command=lambda: self._open_external_url(self.org_check_app_url),
+            command=lambda: self._open_external_url(self.ORG_CHECK_APP_URL),
         )
         download_menu.add_command(
             label=self._t("ORG CHECK github"),
-            command=lambda: self._open_external_url(self.org_check_github_url),
+            command=lambda: self._open_external_url(self.ORG_CHECK_GITHUB_URL),
         )
         menu_bar.add_cascade(label=self._t("download_menu"), menu=download_menu)
 
