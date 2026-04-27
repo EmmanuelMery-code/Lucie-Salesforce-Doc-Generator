@@ -7,6 +7,11 @@ from typing import Callable
 
 from src.analyzer.models import Finding
 from src.core.ai_usage import AIUsageEntry, AIUsageStats
+from src.core.customization_metrics import (
+    AdoptionStats,
+    DataModelCustomisationStats,
+)
+from src.core.index_card_visibility import IndexCardVisibility
 from src.core.models import (
     MetadataSnapshot,
     PmdViolation,
@@ -298,8 +303,14 @@ def render_index(
     ai_usage_entries: list[AIUsageEntry] | None = None,
     ai_usage_page: Path | None = None,
     ai_usage_stats: AIUsageStats | None = None,
+    data_model_stats: DataModelCustomisationStats | None = None,
+    adoption_stats: AdoptionStats | None = None,
+    customisation_page: Path | None = None,
+    adoption_page: Path | None = None,
+    card_visibility: IndexCardVisibility | None = None,
 ) -> str:
     metrics = snapshot.metrics
+    visibility = card_visibility or IndexCardVisibility()
     object_rows = "".join(
         f"<tr><td><a href='{href_relative(current_path, object_pages[item.api_name])}'>{html_value(item.api_name)}</a></td>"
         f"<td>{html_value(item.label)}</td><td>{len(item.fields)}</td><td>{len(item.relationships)}</td></tr>"
@@ -407,35 +418,196 @@ def render_index(
         + metrics.omni_data_transforms
     )
     findings_card = ""
-    findings_total = 0
-    if analyzer_report is not None:
+    if analyzer_report is not None and visibility.show_findings:
         findings_total = len(analyzer_report.all_findings())
         findings_card = (
             f'  <div class="card"><span>Findings analyseur</span>'
             f'<span class="value">{findings_total}</span></div>\n'
         )
 
-    ai_usage_card = _render_ai_usage_card(
-        ai_usage_stats, ai_usage_page, current_path
+    ai_usage_card = (
+        _render_ai_usage_card(ai_usage_stats, ai_usage_page, current_path)
+        if visibility.show_ai_usage
+        else ""
+    )
+    data_model_card = (
+        _render_data_model_card(data_model_stats, customisation_page, current_path)
+        if visibility.show_data_model_footprint
+        else ""
+    )
+    adoption_card = (
+        _render_adoption_card(adoption_stats, adoption_page, current_path)
+        if visibility.show_adopt_adapt_posture
+        else ""
+    )
+
+    customization_level_card = (
+        f'  <div class="card"><span>Niveau de customisation</span>'
+        f'<span class="value">{html_value(metrics.level)}</span></div>\n'
+        if visibility.show_customization_level
+        else ""
+    )
+    score_card = (
+        f'  <div class="card"><span>Score</span>'
+        f'<span class="value">{metrics.score}</span></div>\n'
+        if visibility.show_score
+        else ""
+    )
+    adopt_vs_adapt_card = (
+        f'  <div class="card"><span>Adopt vs Adapt</span>'
+        f'<span class="value">{html_value(metrics.adopt_adapt_level)}</span></div>\n'
+        if visibility.show_adopt_vs_adapt
+        else ""
+    )
+    adopt_adapt_score_card = (
+        f'  <div class="card"><span>Score Adopt vs Adapt</span>'
+        f'<span class="value">{metrics.adopt_adapt_score}</span></div>\n'
+        if visibility.show_adopt_adapt_score
+        else ""
+    )
+    custom_objects_card = (
+        f'  <div class="card"><span>Objets custom</span>'
+        f'<span class="value">{metrics.custom_objects}</span></div>\n'
+        if visibility.show_custom_objects
+        else ""
+    )
+    custom_fields_card = (
+        f'  <div class="card"><span>Champs custom</span>'
+        f'<span class="value">{metrics.custom_fields}</span></div>\n'
+        if visibility.show_custom_fields
+        else ""
+    )
+    flows_card = (
+        f'  <div class="card"><span>Flows</span>'
+        f'<span class="value">{metrics.flows}</span></div>\n'
+        if visibility.show_flows
+        else ""
+    )
+    apex_classes_triggers_card = (
+        f'  <div class="card"><span>Classes / Triggers</span>'
+        f'<span class="value">{metrics.apex_classes + metrics.apex_triggers}</span></div>\n'
+        if visibility.show_apex_classes_triggers
+        else ""
+    )
+    omni_components_card = (
+        f'  <div class="card"><span>Composants Omni</span>'
+        f'<span class="value">{omni_total}</span></div>\n'
+        if visibility.show_omni_components
+        else ""
     )
 
     body = f"""
 <h1>Documentation Salesforce</h1>
 <p>Source analysee: <code>{html_value(snapshot.source_dir)}</code></p>
 <div class="cards">
-  <div class="card"><span>Niveau de customisation</span><span class="value">{html_value(metrics.level)}</span></div>
-  <div class="card"><span>Score</span><span class="value">{metrics.score}</span></div>
-  <div class="card"><span>Adopt vs Adapt</span><span class="value">{html_value(metrics.adopt_adapt_level)}</span></div>
-  <div class="card"><span>Score Adopt vs Adapt</span><span class="value">{metrics.adopt_adapt_score}</span></div>
-  <div class="card"><span>Objets custom</span><span class="value">{metrics.custom_objects}</span></div>
-  <div class="card"><span>Champs custom</span><span class="value">{metrics.custom_fields}</span></div>
-  <div class="card"><span>Flows</span><span class="value">{metrics.flows}</span></div>
-  <div class="card"><span>Classes / Triggers</span><span class="value">{metrics.apex_classes + metrics.apex_triggers}</span></div>
-  <div class="card"><span>Composants Omni</span><span class="value">{omni_total}</span></div>
-{findings_card}{ai_usage_card}</div>
+{customization_level_card}{score_card}{adopt_vs_adapt_card}{adopt_adapt_score_card}{custom_objects_card}{custom_fields_card}{flows_card}{apex_classes_triggers_card}{omni_components_card}{findings_card}{ai_usage_card}{data_model_card}{adoption_card}</div>
 {tabs}
 """
     return render_page("Index", body, current_path, assets_dir, include_mermaid=False)
+
+
+def _render_data_model_card(
+    stats: DataModelCustomisationStats | None,
+    page_path: Path | None,
+    current_path: Path,
+) -> str:
+    """Render the *Empreinte data model* card on the index.
+
+    Lays out custom vs standard objects+fields side by side with their
+    percentages. The "custom" figure is hyperlinked to the dedicated
+    page when available so a reader can drill down.
+    """
+
+    if stats is None or stats.total_objects + stats.total_fields == 0:
+        return (
+            '  <div class="card adopt-card"><span>Empreinte data model</span>'
+            '<span class="value">N/A</span>'
+            '<small class="adopt-hint">Mesure non disponible.</small></div>\n'
+        )
+
+    custom_count = stats.custom_objects + stats.custom_fields
+    standard_count = stats.standard_objects + stats.standard_fields
+    custom_pct = stats.percent_custom_global
+    standard_pct = stats.percent_standard_global
+    total = custom_count + standard_count
+
+    if page_path is not None:
+        href = html_value(href_relative(current_path, page_path))
+        custom_html = f'<a href="{href}">{custom_count}</a>'
+    else:
+        custom_html = str(custom_count)
+
+    return (
+        '  <div class="card adopt-card">\n'
+        '    <span>Empreinte data model</span>\n'
+        '    <div class="adopt-grid">\n'
+        '      <div class="adopt-stat adopt-stat--adapt">\n'
+        '        <span class="adopt-label">Custom</span>\n'
+        f'        <span class="value">{custom_html}</span>\n'
+        f'        <span class="adopt-percent">{custom_pct:.1f} %</span>\n'
+        '      </div>\n'
+        '      <div class="adopt-stat adopt-stat--adopt">\n'
+        '        <span class="adopt-label">Standard</span>\n'
+        f'        <span class="value">{standard_count}</span>\n'
+        f'        <span class="adopt-percent">{standard_pct:.1f} %</span>\n'
+        '      </div>\n'
+        '    </div>\n'
+        f'    <span class="adopt-hint">Objets+champs analyses : {total}</span>\n'
+        '  </div>\n'
+    )
+
+
+def _render_adoption_card(
+    stats: AdoptionStats | None,
+    page_path: Path | None,
+    current_path: Path,
+) -> str:
+    """Render the *Posture Adopt vs Adapt* card on the index.
+
+    Adopt and Adapt counters are shown side by side with the weighted
+    percentage; the "Adapt" total aggregates both Adapt-Low (declarative)
+    and Adapt-High (code) so the summary stays compact, while the detail
+    page is the place to look at the low/high split.
+    """
+
+    if stats is None or stats.total_count == 0:
+        return (
+            '  <div class="card adopt-card"><span>Posture Adopt vs Adapt</span>'
+            '<span class="value">N/A</span>'
+            '<small class="adopt-hint">Mesure non disponible.</small></div>\n'
+        )
+
+    adopt_count = stats.adopt_count
+    adapt_count = stats.adapt_count
+    adopt_pct = stats.percent_adoption
+    adapt_pct = stats.percent_adaptation
+
+    if page_path is not None:
+        href = html_value(href_relative(current_path, page_path))
+        adopt_html = f'<a href="{href}">{adopt_count}</a>'
+    else:
+        adopt_html = str(adopt_count)
+
+    return (
+        '  <div class="card adopt-card">\n'
+        '    <span>Posture Adopt vs Adapt</span>\n'
+        '    <div class="adopt-grid">\n'
+        '      <div class="adopt-stat adopt-stat--adopt">\n'
+        '        <span class="adopt-label">Adopt</span>\n'
+        f'        <span class="value">{adopt_html}</span>\n'
+        f'        <span class="adopt-percent">{adopt_pct:.1f} %</span>\n'
+        '      </div>\n'
+        '      <div class="adopt-stat adopt-stat--adapt">\n'
+        '        <span class="adopt-label">Adapt</span>\n'
+        f'        <span class="value">{adapt_count}</span>\n'
+        f'        <span class="adopt-percent">{adapt_pct:.1f} %</span>\n'
+        '      </div>\n'
+        '    </div>\n'
+        '    <span class="adopt-hint">'
+        f'Capacites : {stats.total_count} / poids {stats.total_weight}'
+        '</span>\n'
+        '  </div>\n'
+    )
 
 
 def _render_ai_usage_card(
@@ -509,6 +681,11 @@ def write_index(
     ai_usage_entries: list[AIUsageEntry] | None = None,
     ai_usage_page: Path | None = None,
     ai_usage_stats: AIUsageStats | None = None,
+    data_model_stats: DataModelCustomisationStats | None = None,
+    adoption_stats: AdoptionStats | None = None,
+    customisation_page: Path | None = None,
+    adoption_page: Path | None = None,
+    card_visibility: IndexCardVisibility | None = None,
 ) -> Path:
     path = output_dir / "index.html"
     write_text(
@@ -529,6 +706,11 @@ def write_index(
             ai_usage_entries=ai_usage_entries,
             ai_usage_page=ai_usage_page,
             ai_usage_stats=ai_usage_stats,
+            data_model_stats=data_model_stats,
+            adoption_stats=adoption_stats,
+            customisation_page=customisation_page,
+            adoption_page=adoption_page,
+            card_visibility=card_visibility,
         ),
     )
     log(f"Index genere: {path}")

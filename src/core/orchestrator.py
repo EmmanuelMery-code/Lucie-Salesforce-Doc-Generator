@@ -21,6 +21,13 @@ from src.core.ai_usage import (
     compute_ai_usage_stats,
     scan_ai_usage,
 )
+from src.core.customization_metrics import (
+    AdoptionStats,
+    DataModelCustomisationStats,
+    compute_adoption_stats,
+    compute_data_model_stats,
+)
+from src.core.index_card_visibility import IndexCardVisibility
 from src.core.models import MetadataSnapshot, PmdViolation
 from src.core.pmd_service import PmdService
 from src.parsers.salesforce_parser import SalesforceMetadataParser
@@ -54,6 +61,10 @@ class GenerationResult:
     ai_usage_page: Path | None = None
     ai_usage_entries: list[AIUsageEntry] = field(default_factory=list)
     ai_usage_stats: AIUsageStats | None = None
+    data_model_stats: DataModelCustomisationStats | None = None
+    adoption_stats: AdoptionStats | None = None
+    customisation_page: Path | None = None
+    adoption_page: Path | None = None
     object_pages: dict = field(default_factory=dict)
     apex_pages: dict = field(default_factory=dict)
     flow_pages: dict = field(default_factory=dict)
@@ -90,6 +101,7 @@ class SalesforceDocumentationGenerator:
         adopt_adapt_thresholds: tuple[int, int, int] | None = None,
         analyzer_rules_path: str | Path | None = None,
         ai_usage_tags: list[str] | tuple[str, ...] | None = None,
+        index_card_visibility: IndexCardVisibility | None = None,
         language: str = "fr",
         log_callback: LogCallback | None = None,
     ) -> None:
@@ -118,6 +130,11 @@ class SalesforceDocumentationGenerator:
             for tag in (ai_usage_tags or [])
             if isinstance(tag, str) and tag.strip()
         ]
+        self.index_card_visibility: IndexCardVisibility = (
+            index_card_visibility
+            if index_card_visibility is not None
+            else IndexCardVisibility()
+        )
         # Language drives the localisation of the Word documents we generate
         # (data dictionary + summary). Falls back to French if the value is
         # not one of the supported codes.
@@ -283,6 +300,12 @@ class SalesforceDocumentationGenerator:
             tags=self.ai_usage_tags,
             stats=result.ai_usage_stats,
         )
+        result.customisation_page = html_writer.write_customisation_page(
+            snapshot, result.data_model_stats
+        )
+        result.adoption_page = html_writer.write_adoption_page(
+            snapshot, result.adoption_stats
+        )
         result.index = html_writer.write_index(
             snapshot,
             result.object_pages,
@@ -296,6 +319,11 @@ class SalesforceDocumentationGenerator:
             ai_usage_entries=result.ai_usage_entries,
             ai_usage_page=result.ai_usage_page,
             ai_usage_stats=result.ai_usage_stats,
+            data_model_stats=result.data_model_stats,
+            adoption_stats=result.adoption_stats,
+            customisation_page=result.customisation_page,
+            adoption_page=result.adoption_page,
+            card_visibility=self.index_card_visibility,
         )
 
     # ------------------------------------------------------------------
@@ -383,6 +411,27 @@ class SalesforceDocumentationGenerator:
             f"{stats.total} element(s), "
             f"avec tag IA = {stats.with_tag_count} ({stats.percent_with_tag:.1f} %), "
             f"sans tag IA = {stats.without_tag_count} ({stats.percent_without_tag:.1f} %)."
+        )
+
+        result.data_model_stats = compute_data_model_stats(snapshot)
+        dm_stats = result.data_model_stats
+        self.log(
+            "Empreinte data model : "
+            f"objets custom = {dm_stats.custom_objects}/{dm_stats.total_objects} "
+            f"({dm_stats.percent_custom_objects:.1f} %), "
+            f"champs custom = {dm_stats.custom_fields}/{dm_stats.total_fields} "
+            f"({dm_stats.percent_custom_fields:.1f} %), "
+            f"global custom = {dm_stats.percent_custom_global:.1f} %."
+        )
+
+        result.adoption_stats = compute_adoption_stats(snapshot)
+        adoption = result.adoption_stats
+        self.log(
+            "Posture Adopt vs Adapt : "
+            f"adoption = {adoption.percent_adoption:.1f} % "
+            f"({adoption.adopt_count}/{adoption.total_count} capacites), "
+            f"adaptation = {adoption.percent_adaptation:.1f} % "
+            f"(low {adoption.adapt_low_count}, high {adoption.adapt_high_count})."
         )
 
         self._generate_word(snapshot, analyzer_report, result)

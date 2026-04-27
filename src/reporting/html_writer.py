@@ -14,6 +14,11 @@ from pathlib import Path
 from typing import Callable
 
 from src.core.ai_usage import AIUsageEntry, AIUsageStats
+from src.core.customization_metrics import (
+    AdoptionStats,
+    DataModelCustomisationStats,
+)
+from src.core.index_card_visibility import IndexCardVisibility
 from src.core.models import (
     MetadataSnapshot,
     PmdViolation,
@@ -22,8 +27,10 @@ from src.core.models import (
 
 from src.reporting.html import assets
 from src.reporting.html.renderers import (
+    adoption as adoption_renderer,
     ai_usage as ai_usage_renderer,
     apex as apex_renderer,
+    customisation as customisation_renderer,
     excel_preview as excel_preview_renderer,
     flows as flows_renderer,
     index as index_renderer,
@@ -156,6 +163,32 @@ class HtmlReportWriter:
             stats=stats,
         )
 
+    def write_customisation_page(
+        self,
+        snapshot: MetadataSnapshot,
+        stats: DataModelCustomisationStats | None,
+    ) -> Path:
+        return customisation_renderer.write_customisation_page(
+            snapshot,
+            stats,
+            self.output_dir,
+            self.assets_dir,
+            self.log,
+        )
+
+    def write_adoption_page(
+        self,
+        snapshot: MetadataSnapshot,
+        stats: AdoptionStats | None,
+    ) -> Path:
+        return adoption_renderer.write_adoption_page(
+            snapshot,
+            stats,
+            self.output_dir,
+            self.assets_dir,
+            self.log,
+        )
+
     def write_index(
         self,
         snapshot: MetadataSnapshot,
@@ -171,6 +204,11 @@ class HtmlReportWriter:
         ai_usage_entries: list[AIUsageEntry] | None = None,
         ai_usage_page: Path | None = None,
         ai_usage_stats: AIUsageStats | None = None,
+        data_model_stats: DataModelCustomisationStats | None = None,
+        adoption_stats: AdoptionStats | None = None,
+        customisation_page: Path | None = None,
+        adoption_page: Path | None = None,
+        card_visibility: IndexCardVisibility | None = None,
     ) -> Path:
         return index_renderer.write_index(
             snapshot,
@@ -188,4 +226,9 @@ class HtmlReportWriter:
             ai_usage_entries=ai_usage_entries,
             ai_usage_page=ai_usage_page,
             ai_usage_stats=ai_usage_stats,
+            data_model_stats=data_model_stats,
+            adoption_stats=adoption_stats,
+            customisation_page=customisation_page,
+            adoption_page=adoption_page,
+            card_visibility=card_visibility,
         )

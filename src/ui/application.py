@@ -20,6 +20,10 @@ from src.ai import (
 )
 from src.analyzer.models import Rule
 from src.analyzer.rule_catalog import DEFAULT_RULES_PATH, RuleCatalog
+from src.core.index_card_visibility import (
+    IndexCardVisibility,
+    parse_index_card_visibility,
+)
 from src.core.models import (
     DEFAULT_ADOPT_ADAPT_THRESHOLDS,
     DEFAULT_SCORING_THRESHOLDS,
@@ -188,6 +192,46 @@ class Application(tk.Tk):
         self.generate_summary_word_var = tk.BooleanVar(
             value=bool(self.settings.get("generate_summary_word", True))
         )
+        index_card_visibility = parse_index_card_visibility(self.settings)
+        self.show_card_customization_level_var = tk.BooleanVar(
+            value=index_card_visibility.show_customization_level
+        )
+        self.show_card_score_var = tk.BooleanVar(
+            value=index_card_visibility.show_score
+        )
+        self.show_card_adopt_vs_adapt_var = tk.BooleanVar(
+            value=index_card_visibility.show_adopt_vs_adapt
+        )
+        self.show_card_adopt_adapt_score_var = tk.BooleanVar(
+            value=index_card_visibility.show_adopt_adapt_score
+        )
+        self.show_card_custom_objects_var = tk.BooleanVar(
+            value=index_card_visibility.show_custom_objects
+        )
+        self.show_card_custom_fields_var = tk.BooleanVar(
+            value=index_card_visibility.show_custom_fields
+        )
+        self.show_card_flows_var = tk.BooleanVar(
+            value=index_card_visibility.show_flows
+        )
+        self.show_card_apex_classes_triggers_var = tk.BooleanVar(
+            value=index_card_visibility.show_apex_classes_triggers
+        )
+        self.show_card_omni_components_var = tk.BooleanVar(
+            value=index_card_visibility.show_omni_components
+        )
+        self.show_card_findings_var = tk.BooleanVar(
+            value=index_card_visibility.show_findings
+        )
+        self.show_card_ai_usage_var = tk.BooleanVar(
+            value=index_card_visibility.show_ai_usage
+        )
+        self.show_card_data_model_footprint_var = tk.BooleanVar(
+            value=index_card_visibility.show_data_model_footprint
+        )
+        self.show_card_adopt_adapt_posture_var = tk.BooleanVar(
+            value=index_card_visibility.show_adopt_adapt_posture
+        )
 
         self.hero_image: tk.PhotoImage | None = None
         self.icon_image: tk.PhotoImage | None = None
@@ -216,6 +260,18 @@ class Application(tk.Tk):
         self.discussion_worker: Thread | None = None
         self.discussion_pending: bool = False
         self._discussion_last_send_ts: float = 0.0
+        # Index (within the user-question history) currently focused by
+        # the previous/next navigation buttons. ``None`` means "no
+        # question is focused yet". The companion ``ranges`` list stores
+        # the matching Tk indices in the discussion history widget so
+        # navigation can scroll and highlight the correct line.
+        self.discussion_question_index: int | None = None
+        self.discussion_question_ranges: list[tuple[str, str]] = []
+        # When True, the discussion ignores the in-memory snapshot and asks
+        # the assistant to rely solely on the documentation already present
+        # on disk in ``output_var``. Toggled via the dedicated button on the
+        # discussion tab; not persisted across sessions on purpose.
+        self.discussion_force_existing_docs: bool = False
 
         self._build_ui()
         self._apply_language(initial=True)
@@ -397,6 +453,13 @@ class Application(tk.Tk):
         self.log_widget.configure(state="normal")
         self.log_widget.delete("1.0", "end")
         self.log_widget.configure(state="disabled")
+
+        log_actions_row = ttk.Frame(self.documentation_tab)
+        log_actions_row.pack(fill="x", pady=(4, 0))
+        self.log_clear_button = ttk.Button(
+            log_actions_row, command=self._clear_log
+        )
+        self.log_clear_button.pack(side="right")
 
         self._build_discussion_tab(self.discussion_tab)
 
@@ -622,10 +685,12 @@ class Application(tk.Tk):
         discussion_tab = ttk.Frame(notebook, padding=12)
         rules_tab = ttk.Frame(notebook, padding=12)
         ai_tags_tab = ttk.Frame(notebook, padding=12)
+        index_cards_tab = ttk.Frame(notebook, padding=12)
         notebook.add(doc_tab, text=self._t("configuration_tab_documentation"))
         notebook.add(discussion_tab, text=self._t("configuration_tab_discussion"))
         notebook.add(rules_tab, text=self._t("configuration_tab_rules"))
         notebook.add(ai_tags_tab, text=self._t("configuration_tab_ai_tags"))
+        notebook.add(index_cards_tab, text=self._t("configuration_tab_index_cards"))
 
         edit_vars = {
             "language": tk.StringVar(value=self._language_display(self.language)),
@@ -653,12 +718,52 @@ class Application(tk.Tk):
             "generate_summary_word": tk.BooleanVar(
                 value=bool(self.generate_summary_word_var.get())
             ),
+            "show_card_customization_level": tk.BooleanVar(
+                value=bool(self.show_card_customization_level_var.get())
+            ),
+            "show_card_score": tk.BooleanVar(
+                value=bool(self.show_card_score_var.get())
+            ),
+            "show_card_adopt_vs_adapt": tk.BooleanVar(
+                value=bool(self.show_card_adopt_vs_adapt_var.get())
+            ),
+            "show_card_adopt_adapt_score": tk.BooleanVar(
+                value=bool(self.show_card_adopt_adapt_score_var.get())
+            ),
+            "show_card_custom_objects": tk.BooleanVar(
+                value=bool(self.show_card_custom_objects_var.get())
+            ),
+            "show_card_custom_fields": tk.BooleanVar(
+                value=bool(self.show_card_custom_fields_var.get())
+            ),
+            "show_card_flows": tk.BooleanVar(
+                value=bool(self.show_card_flows_var.get())
+            ),
+            "show_card_apex_classes_triggers": tk.BooleanVar(
+                value=bool(self.show_card_apex_classes_triggers_var.get())
+            ),
+            "show_card_omni_components": tk.BooleanVar(
+                value=bool(self.show_card_omni_components_var.get())
+            ),
+            "show_card_findings": tk.BooleanVar(
+                value=bool(self.show_card_findings_var.get())
+            ),
+            "show_card_ai_usage": tk.BooleanVar(
+                value=bool(self.show_card_ai_usage_var.get())
+            ),
+            "show_card_data_model_footprint": tk.BooleanVar(
+                value=bool(self.show_card_data_model_footprint_var.get())
+            ),
+            "show_card_adopt_adapt_posture": tk.BooleanVar(
+                value=bool(self.show_card_adopt_adapt_posture_var.get())
+            ),
         }
 
         self._build_configuration_documentation_tab(doc_tab, edit_vars)
         self._build_configuration_discussion_tab(discussion_tab, edit_vars)
         self._build_configuration_rules_tab(rules_tab)
         self._build_configuration_ai_tags_tab(ai_tags_tab)
+        self._build_configuration_index_cards_tab(index_cards_tab, edit_vars)
 
         buttons_row = ttk.Frame(scrollable_frame)
         buttons_row.pack(fill="x", pady=(12, 0))
@@ -858,6 +963,74 @@ class Application(tk.Tk):
     def _build_configuration_ai_tags_tab(self, parent: ttk.Frame) -> None:
         ai_tags_panel.build_panel(self, parent)
 
+    def _build_configuration_index_cards_tab(
+        self, parent: ttk.Frame, edit_vars: dict[str, tk.Variable]
+    ) -> None:
+        """Render the 'Cartes index' tab listing all dashboard toggles.
+
+        Cards are grouped in three buckets so the user can quickly find
+        the toggle they need: scoring synthesis, raw counters, and
+        quality / posture indicators.
+        """
+
+        ttk.Label(
+            parent,
+            text=self._t("configuration_index_cards_title"),
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor="w", pady=(0, 4))
+        ttk.Label(
+            parent,
+            text=self._t("configuration_index_cards_description"),
+            wraplength=640,
+            justify="left",
+            foreground="#475569",
+        ).pack(anchor="w", pady=(0, 10))
+
+        groups: list[tuple[str, list[tuple[str, str]]]] = [
+            (
+                "configuration_index_cards_section_synthesis",
+                [
+                    ("show_card_customization_level", "configuration_card_customization_level"),
+                    ("show_card_score", "configuration_card_score"),
+                    ("show_card_adopt_vs_adapt", "configuration_card_adopt_vs_adapt"),
+                    ("show_card_adopt_adapt_score", "configuration_card_adopt_adapt_score"),
+                ],
+            ),
+            (
+                "configuration_index_cards_section_volume",
+                [
+                    ("show_card_custom_objects", "configuration_card_custom_objects"),
+                    ("show_card_custom_fields", "configuration_card_custom_fields"),
+                    ("show_card_flows", "configuration_card_flows"),
+                    ("show_card_apex_classes_triggers", "configuration_card_apex_classes_triggers"),
+                    ("show_card_omni_components", "configuration_card_omni_components"),
+                ],
+            ),
+            (
+                "configuration_index_cards_section_quality",
+                [
+                    ("show_card_findings", "configuration_card_findings"),
+                    ("show_card_ai_usage", "configuration_card_ai_usage"),
+                    ("show_card_data_model_footprint", "configuration_card_data_model_footprint"),
+                    ("show_card_adopt_adapt_posture", "configuration_card_adopt_adapt_posture"),
+                ],
+            ),
+        ]
+
+        for section_key, toggles in groups:
+            container = ttk.LabelFrame(
+                parent,
+                text=self._t(section_key),
+                padding=10,
+            )
+            container.pack(fill="x", pady=(0, 8))
+            for var_key, label_key in toggles:
+                ttk.Checkbutton(
+                    container,
+                    text=self._t(label_key),
+                    variable=edit_vars[var_key],
+                ).pack(anchor="w", pady=(2, 2))
+
     def _persist_analyzer_rules(self) -> None:
         analyzer_rules_panel.persist_changes(self)
 
@@ -928,6 +1101,45 @@ class Application(tk.Tk):
         )
         self.generate_summary_word_var.set(
             bool(edit_vars["generate_summary_word"].get())
+        )
+        self.show_card_customization_level_var.set(
+            bool(edit_vars["show_card_customization_level"].get())
+        )
+        self.show_card_score_var.set(
+            bool(edit_vars["show_card_score"].get())
+        )
+        self.show_card_adopt_vs_adapt_var.set(
+            bool(edit_vars["show_card_adopt_vs_adapt"].get())
+        )
+        self.show_card_adopt_adapt_score_var.set(
+            bool(edit_vars["show_card_adopt_adapt_score"].get())
+        )
+        self.show_card_custom_objects_var.set(
+            bool(edit_vars["show_card_custom_objects"].get())
+        )
+        self.show_card_custom_fields_var.set(
+            bool(edit_vars["show_card_custom_fields"].get())
+        )
+        self.show_card_flows_var.set(
+            bool(edit_vars["show_card_flows"].get())
+        )
+        self.show_card_apex_classes_triggers_var.set(
+            bool(edit_vars["show_card_apex_classes_triggers"].get())
+        )
+        self.show_card_omni_components_var.set(
+            bool(edit_vars["show_card_omni_components"].get())
+        )
+        self.show_card_findings_var.set(
+            bool(edit_vars["show_card_findings"].get())
+        )
+        self.show_card_ai_usage_var.set(
+            bool(edit_vars["show_card_ai_usage"].get())
+        )
+        self.show_card_data_model_footprint_var.set(
+            bool(edit_vars["show_card_data_model_footprint"].get())
+        )
+        self.show_card_adopt_adapt_posture_var.set(
+            bool(edit_vars["show_card_adopt_adapt_posture"].get())
         )
 
         if self._config_system_prompt_widget is not None:
@@ -1021,6 +1233,37 @@ class Application(tk.Tk):
             settings, "adopt_adapt_thresholds", DEFAULT_ADOPT_ADAPT_THRESHOLDS
         )
 
+    def _current_index_card_visibility(self) -> IndexCardVisibility:
+        """Build the visibility object passed to the orchestrator.
+
+        Reads the live BooleanVars (which the configuration screen
+        commits on save) so menu actions launched after a settings
+        change immediately respect the new visibility flags without
+        forcing a restart.
+        """
+
+        return IndexCardVisibility(
+            show_customization_level=bool(self.show_card_customization_level_var.get()),
+            show_score=bool(self.show_card_score_var.get()),
+            show_adopt_vs_adapt=bool(self.show_card_adopt_vs_adapt_var.get()),
+            show_adopt_adapt_score=bool(self.show_card_adopt_adapt_score_var.get()),
+            show_custom_objects=bool(self.show_card_custom_objects_var.get()),
+            show_custom_fields=bool(self.show_card_custom_fields_var.get()),
+            show_flows=bool(self.show_card_flows_var.get()),
+            show_apex_classes_triggers=bool(
+                self.show_card_apex_classes_triggers_var.get()
+            ),
+            show_omni_components=bool(self.show_card_omni_components_var.get()),
+            show_findings=bool(self.show_card_findings_var.get()),
+            show_ai_usage=bool(self.show_card_ai_usage_var.get()),
+            show_data_model_footprint=bool(
+                self.show_card_data_model_footprint_var.get()
+            ),
+            show_adopt_adapt_posture=bool(
+                self.show_card_adopt_adapt_posture_var.get()
+            ),
+        )
+
     def _save_settings(self) -> None:
         payload: dict[str, Any] = {
             "language": self.language,
@@ -1051,6 +1294,7 @@ class Application(tk.Tk):
             "adopt_adapt_thresholds": list(self.adopt_adapt_thresholds),
             "ai_usage_tags": list(self.ai_usage_tags),
         }
+        payload.update(self._current_index_card_visibility().to_settings())
         save_settings(self.settings_path, payload)
         self.settings = payload
 
@@ -1123,6 +1367,25 @@ class Application(tk.Tk):
         self.discussion_input_label.configure(text=self._t("discussion_input"))
         self.discussion_send_button.configure(text=self._t("discussion_send"))
         self.discussion_clear_button.configure(text=self._t("discussion_clear"))
+        self.discussion_prev_button.configure(text=self._t("discussion_prev"))
+        self.discussion_next_button.configure(text=self._t("discussion_next"))
+        self.discussion_copy_last_button.configure(
+            text=self._t("discussion_copy_last")
+        )
+        self.discussion_copy_current_button.configure(
+            text=self._t("discussion_copy_current")
+        )
+        self.discussion_copy_all_button.configure(
+            text=self._t("discussion_copy_all")
+        )
+        self.discussion_force_docs_button.configure(
+            text=self._t(
+                "discussion_force_docs_active"
+                if self.discussion_force_existing_docs
+                else "discussion_force_docs"
+            )
+        )
+        self.log_clear_button.configure(text=self._t("log_clear"))
         self._update_discussion_context_status()
 
         self.language_combo["values"] = [self._language_display(code) for code in self.LANGUAGES]
@@ -1400,6 +1663,7 @@ class Application(tk.Tk):
                 scoring_thresholds=tuple(self.scoring_thresholds),
                 adopt_adapt_thresholds=tuple(self.adopt_adapt_thresholds),
                 ai_usage_tags=list(self.ai_usage_tags),
+                index_card_visibility=self._current_index_card_visibility(),
                 language=self.language,
                 log_callback=self._queue_log,
             ).generate()
@@ -1533,6 +1797,7 @@ class Application(tk.Tk):
                 scoring_thresholds=tuple(self.scoring_thresholds),
                 adopt_adapt_thresholds=tuple(self.adopt_adapt_thresholds),
                 ai_usage_tags=list(self.ai_usage_tags),
+                index_card_visibility=self._current_index_card_visibility(),
                 language=self.language,
                 log_callback=self._queue_log,
             ).generate()
@@ -1677,6 +1942,13 @@ class Application(tk.Tk):
         self.log_widget.configure(state="normal")
         self.log_widget.insert("end", str(message) + "\n")
         self.log_widget.see("end")
+        self.log_widget.configure(state="disabled")
+
+    def _clear_log(self) -> None:
+        """Empty the log area shown on the Documentation tab."""
+
+        self.log_widget.configure(state="normal")
+        self.log_widget.delete("1.0", "end")
         self.log_widget.configure(state="disabled")
 
     def _on_close(self) -> None:

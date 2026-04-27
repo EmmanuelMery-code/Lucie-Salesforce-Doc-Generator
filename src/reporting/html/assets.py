@@ -335,6 +335,27 @@ code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 .ai-usage-stat .ai-usage-percent { display: block; font-size: 0.85rem; color: #334155; margin-top: 2px; }
 .ai-usage-card .ai-usage-hint { display: block; margin-top: 10px; font-size: 0.8rem; color: #64748b; font-style: italic; }
 .cards.smallcards .ai-usage-stat--with, .cards.smallcards .ai-usage-stat--without { min-width: 150px; }
+.adopt-card { min-width: 260px; }
+.adopt-grid { display: flex; gap: 16px; margin-top: 8px; }
+.adopt-stat { flex: 1; padding: 8px 12px; border-radius: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; }
+.adopt-stat--adopt { background: #ecfdf5; border-color: #6ee7b7; }
+.adopt-stat--adapt { background: #fff7ed; border-color: #fdba74; }
+.adopt-stat--low { background: #fef9c3; border-color: #facc15; }
+.adopt-stat--high { background: #fef2f2; border-color: #fca5a5; }
+.adopt-stat .adopt-label { display: block; font-size: 0.78rem; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
+.adopt-stat .value { display: block; font-size: 1.4rem; font-weight: 700; margin-top: 4px; color: #0f172a; }
+.adopt-stat .adopt-percent { display: block; font-size: 0.85rem; color: #334155; margin-top: 2px; }
+.adopt-card .adopt-hint { display: block; margin-top: 10px; font-size: 0.8rem; color: #64748b; font-style: italic; }
+.cards.smallcards .adopt-card { min-width: 220px; }
+.cards.smallcards .adopt-card--adopt { background: #ecfdf5; border-color: #6ee7b7; }
+.cards.smallcards .adopt-card--adapt { background: #fff7ed; border-color: #fdba74; }
+.cards.smallcards .adopt-card--low { background: #fef9c3; border-color: #facc15; }
+.cards.smallcards .adopt-card--high { background: #fef2f2; border-color: #fca5a5; }
+.cards.smallcards .adopt-card .adopt-percent { display: block; font-size: 0.85rem; color: #334155; margin-top: 2px; }
+.adopt-level { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 600; font-size: 0.82rem; border: 1px solid #cbd5e1; background: white; color: #1e293b; }
+.adopt-level--adopt { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+.adopt-level--low { background: #fef9c3; border-color: #facc15; color: #854d0e; }
+.adopt-level--high { background: #fef2f2; border-color: #f87171; color: #991b1b; }
 .graph-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
 .graph-toolbar button { border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
 .graph-toolbar button:hover { background: #e2e8f0; }
