@@ -37,10 +37,12 @@ from src.ui.constants import (
     ORG_CHECK_APP_URL as UI_ORG_CHECK_APP_URL,
     ORG_CHECK_GITHUB_URL as UI_ORG_CHECK_GITHUB_URL,
 )
-from src.ui import analyzer_rules_panel, discussion_panel
+from src.ui import ai_tags_panel, analyzer_rules_panel, discussion_panel
 from src.ui.scoring_screens import show_adopt_adapt_screen, show_scoring_screen
 from src.ui.settings import (
+    DEFAULT_AI_USAGE_TAGS,
     load_settings,
+    parse_ai_tags,
     parse_thresholds,
     parse_weights,
     save_settings,
@@ -200,6 +202,8 @@ class Application(tk.Tk):
         self.adopt_adapt_weights = self._load_adopt_adapt_weights(self.settings)
         self.scoring_thresholds = self._load_scoring_thresholds(self.settings)
         self.adopt_adapt_thresholds = self._load_adopt_adapt_thresholds(self.settings)
+        self.ai_usage_tags: list[str] = parse_ai_tags(self.settings)
+        self._ai_tags_listbox: tk.Listbox | None = None
 
         self.queue: Queue[tuple[str, object]] = Queue()
         self.worker: Thread | None = None
@@ -617,9 +621,11 @@ class Application(tk.Tk):
         doc_tab = ttk.Frame(notebook, padding=12)
         discussion_tab = ttk.Frame(notebook, padding=12)
         rules_tab = ttk.Frame(notebook, padding=12)
+        ai_tags_tab = ttk.Frame(notebook, padding=12)
         notebook.add(doc_tab, text=self._t("configuration_tab_documentation"))
         notebook.add(discussion_tab, text=self._t("configuration_tab_discussion"))
         notebook.add(rules_tab, text=self._t("configuration_tab_rules"))
+        notebook.add(ai_tags_tab, text=self._t("configuration_tab_ai_tags"))
 
         edit_vars = {
             "language": tk.StringVar(value=self._language_display(self.language)),
@@ -652,6 +658,7 @@ class Application(tk.Tk):
         self._build_configuration_documentation_tab(doc_tab, edit_vars)
         self._build_configuration_discussion_tab(discussion_tab, edit_vars)
         self._build_configuration_rules_tab(rules_tab)
+        self._build_configuration_ai_tags_tab(ai_tags_tab)
 
         buttons_row = ttk.Frame(scrollable_frame)
         buttons_row.pack(fill="x", pady=(12, 0))
@@ -848,11 +855,34 @@ class Application(tk.Tk):
     def _build_configuration_rules_tab(self, parent: ttk.Frame) -> None:
         analyzer_rules_panel.build_panel(self, parent)
 
+    def _build_configuration_ai_tags_tab(self, parent: ttk.Frame) -> None:
+        ai_tags_panel.build_panel(self, parent)
+
     def _persist_analyzer_rules(self) -> None:
         analyzer_rules_panel.persist_changes(self)
 
     def _reset_analyzer_rules_state(self) -> None:
         analyzer_rules_panel.reset_state(self)
+
+    def _collect_ai_usage_tags(self) -> list[str]:
+        """Return the de-duplicated tag list edited in the configuration tab."""
+
+        raw = ai_tags_panel.collect_tags(self)
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for value in raw:
+            text = value.strip()
+            if not text:
+                continue
+            key = text.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(text)
+        return cleaned
+
+    def _reset_ai_tags_state(self) -> None:
+        ai_tags_panel.reset_state(self)
 
     def _apply_configuration_changes(
         self, edit_vars: dict[str, tk.Variable], window: tk.Toplevel
@@ -907,6 +937,10 @@ class Application(tk.Tk):
 
         self._persist_analyzer_rules()
         self._reset_analyzer_rules_state()
+
+        collected_tags = self._collect_ai_usage_tags()
+        self.ai_usage_tags = collected_tags or list(DEFAULT_AI_USAGE_TAGS)
+        self._reset_ai_tags_state()
 
         self._save_settings()
 
@@ -1015,6 +1049,7 @@ class Application(tk.Tk):
             "adopt_adapt_weights": dict(self.adopt_adapt_weights),
             "scoring_thresholds": list(self.scoring_thresholds),
             "adopt_adapt_thresholds": list(self.adopt_adapt_thresholds),
+            "ai_usage_tags": list(self.ai_usage_tags),
         }
         save_settings(self.settings_path, payload)
         self.settings = payload
@@ -1364,6 +1399,7 @@ class Application(tk.Tk):
                 adopt_adapt_weights=dict(self.adopt_adapt_weights),
                 scoring_thresholds=tuple(self.scoring_thresholds),
                 adopt_adapt_thresholds=tuple(self.adopt_adapt_thresholds),
+                ai_usage_tags=list(self.ai_usage_tags),
                 language=self.language,
                 log_callback=self._queue_log,
             ).generate()
@@ -1496,6 +1532,7 @@ class Application(tk.Tk):
                 adopt_adapt_weights=dict(self.adopt_adapt_weights),
                 scoring_thresholds=tuple(self.scoring_thresholds),
                 adopt_adapt_thresholds=tuple(self.adopt_adapt_thresholds),
+                ai_usage_tags=list(self.ai_usage_tags),
                 language=self.language,
                 log_callback=self._queue_log,
             ).generate()

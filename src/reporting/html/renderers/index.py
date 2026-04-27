@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from src.analyzer.models import Finding
+from src.core.ai_usage import AIUsageEntry, AIUsageStats
 from src.core.models import (
     MetadataSnapshot,
     PmdViolation,
@@ -294,6 +295,9 @@ def render_index(
     assets_dir: Path,
     omni_pages: dict[str, list[dict[str, object]]],
     analyzer_report=None,
+    ai_usage_entries: list[AIUsageEntry] | None = None,
+    ai_usage_page: Path | None = None,
+    ai_usage_stats: AIUsageStats | None = None,
 ) -> str:
     metrics = snapshot.metrics
     object_rows = "".join(
@@ -410,6 +414,11 @@ def render_index(
             f'  <div class="card"><span>Findings analyseur</span>'
             f'<span class="value">{findings_total}</span></div>\n'
         )
+
+    ai_usage_card = _render_ai_usage_card(
+        ai_usage_stats, ai_usage_page, current_path
+    )
+
     body = f"""
 <h1>Documentation Salesforce</h1>
 <p>Source analysee: <code>{html_value(snapshot.source_dir)}</code></p>
@@ -423,10 +432,64 @@ def render_index(
   <div class="card"><span>Flows</span><span class="value">{metrics.flows}</span></div>
   <div class="card"><span>Classes / Triggers</span><span class="value">{metrics.apex_classes + metrics.apex_triggers}</span></div>
   <div class="card"><span>Composants Omni</span><span class="value">{omni_total}</span></div>
-{findings_card}</div>
+{findings_card}{ai_usage_card}</div>
 {tabs}
 """
     return render_page("Index", body, current_path, assets_dir, include_mermaid=False)
+
+
+def _render_ai_usage_card(
+    stats: AIUsageStats | None,
+    page_path: Path | None,
+    current_path: Path,
+) -> str:
+    """Render the "Usage IA" card on the index page.
+
+    The card now exposes two figures side by side: how many customised
+    elements (custom objects, custom fields, validation rules, record
+    types, flows, Apex classes/triggers) carry one of the configured AI
+    tags and how many do not, with the matching percentages. The "with
+    tag" value links to ``ai_usage.html`` when available so reviewers can
+    drill down into the detailed list.
+    """
+
+    if stats is None:
+        return (
+            '  <div class="card ai-usage-card"><span>Usage IA</span>'
+            '<span class="value">N/A</span>'
+            '<small class="ai-usage-hint">Mesure non disponible.</small></div>\n'
+        )
+
+    total = stats.total
+    with_count = stats.with_tag_count
+    without_count = stats.without_tag_count
+    with_pct = stats.percent_with_tag
+    without_pct = stats.percent_without_tag
+
+    if page_path is not None:
+        href = html_value(href_relative(current_path, page_path))
+        with_html = f'<a href="{href}">{with_count}</a>'
+    else:
+        with_html = str(with_count)
+
+    return (
+        '  <div class="card ai-usage-card">\n'
+        '    <span>Usage IA</span>\n'
+        '    <div class="ai-usage-grid">\n'
+        '      <div class="ai-usage-stat ai-usage-stat--with">\n'
+        '        <span class="ai-usage-label">Avec tag</span>\n'
+        f'        <span class="value">{with_html}</span>\n'
+        f'        <span class="ai-usage-percent">{with_pct:.1f} %</span>\n'
+        '      </div>\n'
+        '      <div class="ai-usage-stat ai-usage-stat--without">\n'
+        '        <span class="ai-usage-label">Sans tag</span>\n'
+        f'        <span class="value">{without_count}</span>\n'
+        f'        <span class="ai-usage-percent">{without_pct:.1f} %</span>\n'
+        '      </div>\n'
+        '    </div>\n'
+        f'    <span class="ai-usage-hint">Total customs : {total}</span>\n'
+        '  </div>\n'
+    )
 
 
 def write_index(
@@ -443,6 +506,9 @@ def write_index(
     omni_pages: dict[str, list[dict[str, object]]] | None = None,
     *,
     analyzer_report=None,
+    ai_usage_entries: list[AIUsageEntry] | None = None,
+    ai_usage_page: Path | None = None,
+    ai_usage_stats: AIUsageStats | None = None,
 ) -> Path:
     path = output_dir / "index.html"
     write_text(
@@ -460,6 +526,9 @@ def write_index(
             assets_dir,
             omni_pages or {},
             analyzer_report,
+            ai_usage_entries=ai_usage_entries,
+            ai_usage_page=ai_usage_page,
+            ai_usage_stats=ai_usage_stats,
         ),
     )
     log(f"Index genere: {path}")

@@ -85,6 +85,46 @@ def _coerce_int(value: Any) -> int | None:
     return None
 
 
+DEFAULT_AI_USAGE_TAGS: tuple[str, ...] = ("@IAgenerated", "@IAassisted")
+
+
+def parse_ai_tags(
+    settings: Mapping[str, Any],
+    storage_key: str = "ai_usage_tags",
+    defaults: tuple[str, ...] = DEFAULT_AI_USAGE_TAGS,
+) -> list[str]:
+    """Return a clean, de-duplicated list of AI usage tags.
+
+    The settings file may contain a list of strings, missing values, or
+    invalid types (numbers, dicts) sneaked in by hand-edits. This helper
+    normalises everything to a non-empty list of stripped strings while
+    preserving the order chosen by the user. Falls back to ``defaults``
+    when no usable value is found.
+    """
+
+    raw = settings.get(storage_key)
+    if not isinstance(raw, list):
+        return list(defaults)
+
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in raw:
+        if not isinstance(value, str):
+            continue
+        text = value.strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(text)
+
+    if not cleaned:
+        return list(defaults)
+    return cleaned
+
+
 def parse_thresholds(
     settings: Mapping[str, Any],
     storage_key: str,

@@ -325,6 +325,16 @@ ul { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 
 .tab-panel .mermaid-container { max-width: 100%; }
 code { background: #e2e8f0; padding: 2px 4px; border-radius: 4px; }
 .smallcards .card { min-width: 150px; }
+.ai-usage-card { min-width: 260px; }
+.ai-usage-grid { display: flex; gap: 16px; margin-top: 8px; }
+.ai-usage-stat { flex: 1; padding: 8px 12px; border-radius: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; }
+.ai-usage-stat--with { background: #ecfdf5; border-color: #6ee7b7; }
+.ai-usage-stat--without { background: #fef2f2; border-color: #fca5a5; }
+.ai-usage-stat .ai-usage-label { display: block; font-size: 0.78rem; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
+.ai-usage-stat .value { display: block; font-size: 1.4rem; font-weight: 700; margin-top: 4px; color: #0f172a; }
+.ai-usage-stat .ai-usage-percent { display: block; font-size: 0.85rem; color: #334155; margin-top: 2px; }
+.ai-usage-card .ai-usage-hint { display: block; margin-top: 10px; font-size: 0.8rem; color: #64748b; font-style: italic; }
+.cards.smallcards .ai-usage-stat--with, .cards.smallcards .ai-usage-stat--without { min-width: 150px; }
 .graph-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
 .graph-toolbar button { border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
 .graph-toolbar button:hover { background: #e2e8f0; }

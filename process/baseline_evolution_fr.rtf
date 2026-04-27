@@ -1,0 +1,175 @@
+{\rtf1\ansi\ansicpg1252\deff0\nouicompat\deflang1036
+{\fonttbl{\f0\fnil\fcharset0 Calibri;}{\f1\fnil\fcharset0 Consolas;}}
+{\colortbl ;\red0\green0\blue0;\red0\green70\blue140;\red80\green80\blue80;\red200\green80\blue40;}
+{\*\generator Lucie Baseline Doc;}\viewkind4\uc1
+\paperw11906\paperh16838\margl1134\margr1134\margt1134\margb1134
+\pard\sa120\sl276\slmult1\f0\fs22 \pard\sb240\sa120\keepn\f0\fs40\b\cf2 Lucie : \'e9tablir une base et suivre l'\'e9volution des livraisons\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Ce document d\'e9crit la d\'e9marche \'e0 mettre en place pour exploiter Lucie comme outil de mesure de la qualit\'e9 d'une org Salesforce au fil des releases. Il pr\'e9cise quels indicateurs sont produits, comment fixer une base de r\'e9f\'e9rence (org neutre ou snapshot T0), comment s'articule le processus de livraison et comment Lucie intervient \'e0 chaque \'e9tape pour mesurer les \'e9volutions.\par
+\pard\sa120\sl276\slmult1\li567\ri567\i\cf3\fs22 Principe directeur : un score n'a de valeur que rapport\'e9 \'e0 une r\'e9f\'e9rence stable. Sans baseline, les indicateurs de Lucie ne sont que des chiffres ; avec une baseline, ils deviennent une trajectoire.\i0\cf1\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 1. Indicateurs suivis par Lucie\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Lucie expose quatre familles d'indicateurs compl\'e9mentaires. Chacune r\'e9pond \'e0 une question diff\'e9rente sur l'\'e9tat de l'org.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 1.1 Score de personnalisation\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Score quantitatif calcul\'e9 \'e0 partir des objets custom, champs custom, record types, validation rules, layouts, onglets, applications, flows, classes Apex, triggers et composants OmniStudio. Chaque \'e9l\'e9ment porte un poids param\'e9trable et la somme positionne l'org sur les niveaux Faible / Moyen / \'c9lev\'e9 / Tr\'e8s \'e9lev\'e9.\par
+\pard\sa120\sl276\slmult1\fs22 Question r\'e9pondue : quelle est la masse de personnalisation accumul\'e9e dans l'org ?\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 1.2 Score Adopt vs Adapt\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Score sp\'e9cifique inspir\'e9 du principe Salesforce \'ab Adopt before Adapt before Build \'bb. Il pond\'e8re principalement les composants qui s'\'e9loignent du standard (Apex, Flows, OmniStudio, LWC, Flexipages, custom objects, custom fields). L'org est positionn\'e9e sur un des niveaux : Adopt (Standard), Adapt (Low), Adapt (Medium), Adapt (High).\par
+\pard\sa120\sl276\slmult1\fs22 Question r\'e9pondue : \'e0 quel point l'org s'\'e9loigne-t-elle du standard Salesforce ?\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 1.3 Findings de l'analyzer interne\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Lucie embarque un analyzer statique pilot\'e9 par le catalogue rules.xml. Les r\'e8gles couvrent Apex, triggers, Flows, objets, champs, validation rules et OmniStudio. Chaque finding porte une cat\'e9gorie Well-Architected (Trusted, Easy, Adaptable) et une s\'e9v\'e9rit\'e9 (Critical, Major, Minor, Info).\par
+\pard\sa120\sl276\slmult1\fs22 Question r\'e9pondue : quels anti-patterns architecturaux ou de maintenabilit\'e9 sont d\'e9tect\'e9s sur la metadata ?\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 1.4 Violations PMD\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Lucie peut s'interfacer avec PMD pour produire un rapport compl\'e9mentaire sur les classes Apex (priorit\'e9s PMD 1 \'e0 5). Cette source compl\'e8te l'analyzer en apportant des r\'e8gles industrielles \'e9prouv\'e9es.\par
+\pard\sa120\sl276\slmult1\fs22 Question r\'e9pondue : quel est l'\'e9tat du code Apex vu par un outil de r\'e9f\'e9rence du march\'e9 ?\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 1.5 M\'e9triques de complexit\'e9 d\'e9taill\'e9es\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 En sus des scores, Lucie produit des m\'e9triques fines :\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Apex : nombre de lignes, m\'e9thodes, SOQL, SOSL, DML, d\'e9bug, pr\'e9sence de SOQL ou DML en boucle, d\'e9claration de partage, gestion d'exception.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Flows : score de complexit\'e9, niveau (Simple / Moyen / Complexe / Tr\'e8s complexe), profondeur, largeur, nombre de d\'e9cisions, d'op\'e9rations de donn\'e9es, de variables.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Objets : nombre de champs, record types, validation rules, layouts.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab OmniStudio : OmniScripts, Integration Procedures, UI Cards, Data Transforms.\par
+\pard\sa120\sl276\slmult1\li567\ri567\i\cf3\fs22 Bonne pratique : surveiller en priorit\'e9 le score Adopt vs Adapt et les findings Critical. Les m\'e9triques fines permettent d'expliquer une variation des scores.\i0\cf1\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 2. D\'e9finir la base : l'org neutre ou snapshot T0\b0\cf1\fs22\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 2.1 Qu'est-ce qu'une base ?\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 La base est le point de r\'e9f\'e9rence \'e0 partir duquel on mesure toutes les \'e9volutions. C'est un \'e9tat fig\'e9 de la metadata, document\'e9 par Lucie une fois pour toutes, et auquel toutes les g\'e9n\'e9rations ult\'e9rieures seront compar\'e9es.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 2.2 Trois fa\'e7ons de fixer la base\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Org Salesforce vierge (Developer Edition) : aucun composant m\'e9tier. Utile pour quantifier la part \'ab standard \'bb d'une org et calibrer le seuil Adopt vs Adapt.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Org m\'e9tier fig\'e9e \'e0 un instant T (par exemple le d\'e9but du programme ou la GA initiale) : c'est la baseline historique, recommand\'e9e pour suivre la trajectoire long terme.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Snapshot Git de la metadata correspondant \'e0 la version livr\'e9e pr\'e9c\'e9dente : utile pour mesurer release N versus release N-1.\par
+\pard\sa120\sl276\slmult1\fs22 Recommandation : choisir UNE baseline historique (option 2 ou 3) et y rester jusqu'\'e0 un \'e9v\'e9nement majeur (refonte fonctionnelle, changement de scope, mont\'e9e de version majeure). En compl\'e9ment, conserver la baseline org vierge (option 1) pour calibrer les seuils.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 2.3 Conditions \'e0 respecter\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab P\'e9rim\'e8tre de retrieve identique \'e0 celui qui sera utilis\'e9 pour les releases : m\'eame package.xml, m\'eame ensemble de types m\'e9tadonn\'e9es.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Configuration Lucie verrouill\'e9e : rules.xml, exclusion.xlsx, poids de scoring, poids Adopt vs Adapt, seuils, ruleset PMD. Cette configuration est versionn\'e9e et plac\'e9e dans \\\\share\\lucie\\_config\\.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Org / snapshot accessible \'e0 tous les Tech Leads, au moins en lecture, ou archiv\'e9 sous forme de dump metadata reproductible.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Base produite par un seul op\'e9rateur (le pilote outillage), valid\'e9e en Design Review avant d'\'eatre publi\'e9e officiellement.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 2.4 Capturer la base avec Lucie\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 1.\tab V\'e9rifier que la configuration commune _config/ est \'e0 jour (rules.xml, exclusion.xlsx, ruleset PMD, poids).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 2.\tab Faire un retrieve de la metadata de la base (org vierge, org fig\'e9e ou checkout d'un tag Git).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 3.\tab Ouvrir Lucie, s\'e9lectionner ce dossier source.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 4.\tab Choisir le dossier de sortie \\\\share\\lucie\\_baseline\\<date>\\.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 5.\tab Activer les options G\'e9n\'e9rer le Data Dictionary Word et G\'e9n\'e9rer le r\'e9sum\'e9 Word.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 6.\tab Lancer G\'e9n\'e9rer la documentation.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 7.\tab V\'e9rifier la coh\'e9rence des indicateurs (rapport summary.docx) avant de publier.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 8.\tab Verrouiller le dossier en lecture seule et r\'e9diger un court README_baseline.md qui d\'e9crit l'origine de la metadata, la date du retrieve et la version de la configuration utilis\'e9e.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 2.5 Indicateurs \'e0 figer dans la base\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Une fois la base captur\'e9e, extraire et figer les indicateurs suivants (recommand\'e9 : les recopier dans le compte rendu de baseline) :\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Score de personnalisation : valeur num\'e9rique et niveau.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Score Adopt vs Adapt : valeur num\'e9rique et niveau.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Findings analyzer : total, ventilation par s\'e9v\'e9rit\'e9, ventilation par cat\'e9gorie Trusted / Easy / Adaptable, top 10 r\'e8gles d\'e9clench\'e9es.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Violations PMD : total, ventilation par priorit\'e9, top 10 r\'e8gles.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Apex : nombre de classes, de triggers, lignes totales, SOQL/DML totaux, classes avec query_in_loop ou dml_in_loop.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Flows : nombre total, ventilation par niveau de complexit\'e9, profondeur max moyenne, largeur max moyenne.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Inventaire : objets custom, champs custom, record types, validation rules, OmniStudio.\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 3. Processus de livraison des releases\b0\cf1\fs22\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 3.1 Cycle release type\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Le cycle de livraison s'articule g\'e9n\'e9ralement en quatre phases. Le tableau ci-dessous pr\'e9cise le r\'f4le de Lucie \'e0 chaque phase.\par
+\trowd\trgaph108\trleft0\cellx2200\cellx5400\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 \b Phase\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Activit\'e9 m\'e9tier\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Activit\'e9 Lucie\b0 \cell\row
+\trowd\trgaph108\trleft0\cellx2200\cellx5400\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Cadrage\cell\pard\intbl\sa0\sl240\slmult1\fs20 Sprint planning de release, scope d\'e9fini.\cell\pard\intbl\sa0\sl240\slmult1\fs20 Relire les indicateurs de la baseline et de la release N-1 pour identifier les risques connus.\cell\row
+\trowd\trgaph108\trleft0\cellx2200\cellx5400\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Build\cell\pard\intbl\sa0\sl240\slmult1\fs20 Sprints, d\'e9veloppements, revues de code.\cell\pard\intbl\sa0\sl240\slmult1\fs20 G\'e9n\'e9ration hebdomadaire dans le dossier Squad pour suivre la d\'e9rive en continu.\cell\row
+\trowd\trgaph108\trleft0\cellx2200\cellx5400\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Stabilisation\cell\pard\intbl\sa0\sl240\slmult1\fs20 Release Candidates (RC1, RC2, ...), recettes, non-r\'e9gression.\cell\pard\intbl\sa0\sl240\slmult1\fs20 G\'e9n\'e9ration officielle \'e0 chaque RC, comparaison vs baseline et vs release N-1, revue Design Review.\cell\row
+\trowd\trgaph108\trleft0\cellx2200\cellx5400\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 GA et hypercare\cell\pard\intbl\sa0\sl240\slmult1\fs20 Mise en production, monitoring, correctifs.\cell\pard\intbl\sa0\sl240\slmult1\fs20 G\'e9n\'e9ration officielle juste apr\'e8s la GA, archivage en lecture seule, mise \'e0 jour du tableau de bord cumul\'e9.\cell\row
+\pard\sa120\sl276\slmult1\fs22 \par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 3.2 R\'f4les\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Pilote outillage Lucie : maintient _config/, valide la baseline, garantit l'invariance des configurations entre deux releases.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Tech Lead Squad : g\'e9n\'e8re la doc de sa Squad, alimente le tableau comparatif, anime la lecture des findings dans la Squad.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Squad : traite les findings introduits dans la release, documente les exceptions, met \'e0 jour les stories en cons\'e9quence.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Manager / Design Review : arbitre les \'e9carts vs baseline, valide ou refuse les r\'e9gressions, autorise le passage en GA.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 3.3 Convention de branches et de retrieve\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Convention de nommage : release/<YYYY.MM> ou release/<n>.<m>. \'c0 chaque RC, un tag est pos\'e9 sur la branche release.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Au moment du tag GA : retrieve depuis la branche release tagu\'e9e (ou depuis l'org de stabilisation), sortie dans \\\\share\\lucie\\releases\\<release-id>\\GA\\<date>\\.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Toutes les g\'e9n\'e9rations Lucie d'une release sont stock\'e9es dans le sous-dossier de la release (RC1, RC2, ..., GA).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab La configuration utilis\'e9e (version de _config/) est trac\'e9e dans le README de la release.\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 4. Mesurer les \'e9volutions \'e0 chaque release\b0\cf1\fs22\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 4.1 G\'e9n\'e9ration officielle d'une release\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 1.\tab Disposer du retrieve de la metadata correspondant \'e0 la release (RC ou GA).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 2.\tab V\'e9rifier que la configuration utilis\'e9e est EXACTEMENT celle de la baseline. Si ce n'est pas le cas : stop, traiter la diff\'e9rence dans la section Gouvernance.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 3.\tab Choisir le dossier de sortie \\\\share\\lucie\\releases\\<release-id>\\<RCx|GA>\\<date>\\.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 4.\tab Lancer G\'e9n\'e9rer la documentation avec les m\'eames options de scoring, exclusions, et r\'e8gles d'analyse.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 5.\tab Stocker le summary.docx, le data_dictionary.docx, l'index HTML et les Excel.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 6.\tab Mettre \'e0 jour le fichier de comparaison (cf 4.2).\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 4.2 Tableau comparatif standard\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Pour chaque release, alimenter un fichier comparison.xlsx (ou comparison.md) avec au minimum les indicateurs suivants. C'est le livrable principal pour le Design Review.\par
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 \b Indicateur\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Baseline T0\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Release N-1\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Release N\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Delta vs T0\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Statut\b0 \cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Score perso (valeur)\cell\pard\intbl\sa0\sl240\slmult1\fs20 120\cell\pard\intbl\sa0\sl240\slmult1\fs20 145\cell\pard\intbl\sa0\sl240\slmult1\fs20 152\cell\pard\intbl\sa0\sl240\slmult1\fs20 +32\cell\pard\intbl\sa0\sl240\slmult1\fs20 OK\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Score perso (niveau)\cell\pard\intbl\sa0\sl240\slmult1\fs20 Moyen\cell\pard\intbl\sa0\sl240\slmult1\fs20 Moyen\cell\pard\intbl\sa0\sl240\slmult1\fs20 Moyen\cell\pard\intbl\sa0\sl240\slmult1\fs20 stable\cell\pard\intbl\sa0\sl240\slmult1\fs20 OK\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Adopt vs Adapt (valeur)\cell\pard\intbl\sa0\sl240\slmult1\fs20 80\cell\pard\intbl\sa0\sl240\slmult1\fs20 95\cell\pard\intbl\sa0\sl240\slmult1\fs20 98\cell\pard\intbl\sa0\sl240\slmult1\fs20 +18\cell\pard\intbl\sa0\sl240\slmult1\fs20 Surveiller\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Adopt vs Adapt (niveau)\cell\pard\intbl\sa0\sl240\slmult1\fs20 Adapt Low\cell\pard\intbl\sa0\sl240\slmult1\fs20 Adapt Low\cell\pard\intbl\sa0\sl240\slmult1\fs20 Adapt Low\cell\pard\intbl\sa0\sl240\slmult1\fs20 stable\cell\pard\intbl\sa0\sl240\slmult1\fs20 OK\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Findings Critical\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 1\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 OK\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Findings Major\cell\pard\intbl\sa0\sl240\slmult1\fs20 12\cell\pard\intbl\sa0\sl240\slmult1\fs20 14\cell\pard\intbl\sa0\sl240\slmult1\fs20 11\cell\pard\intbl\sa0\sl240\slmult1\fs20 -1\cell\pard\intbl\sa0\sl240\slmult1\fs20 OK\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Findings Minor\cell\pard\intbl\sa0\sl240\slmult1\fs20 23\cell\pard\intbl\sa0\sl240\slmult1\fs20 29\cell\pard\intbl\sa0\sl240\slmult1\fs20 31\cell\pard\intbl\sa0\sl240\slmult1\fs20 +8\cell\pard\intbl\sa0\sl240\slmult1\fs20 Surveiller\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Violations PMD P1\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 1\cell\pard\intbl\sa0\sl240\slmult1\fs20 +1\cell\pard\intbl\sa0\sl240\slmult1\fs20 R\'e9gression\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Apex query_in_loop\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 1\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 OK\cell\row
+\trowd\trgaph108\trleft0\cellx3200\cellx4400\cellx5600\cellx6800\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Flows Tr\'e8s complexes\cell\pard\intbl\sa0\sl240\slmult1\fs20 1\cell\pard\intbl\sa0\sl240\slmult1\fs20 2\cell\pard\intbl\sa0\sl240\slmult1\fs20 2\cell\pard\intbl\sa0\sl240\slmult1\fs20 +1\cell\pard\intbl\sa0\sl240\slmult1\fs20 Surveiller\cell\row
+\pard\sa120\sl276\slmult1\fs22 \par
+\pard\sa120\sl276\slmult1\fs22 Le statut est calcul\'e9 selon des seuils discut\'e9s en Design Review. Trois \'e9tats minimum : OK / Surveiller / R\'e9gression.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 4.3 Crit\'e8res de r\'e9ussite et signaux d'alerte\b0\cf1\fs22\par
+\pard\sb160\sa80\keepn\f0\fs26\b Crit\'e8res de r\'e9ussite (autorisent le passage en GA)\b0\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Aucun nouveau finding Critical introduit par la release.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Aucune nouvelle violation PMD de priorit\'e9 1.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Score Adopt vs Adapt qui n'augmente que dans la limite autoris\'e9e par les stories de la release.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Aucune classe sans declaration de partage explicite introduite.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Pas de nouvelle classe avec query_in_loop ou dml_in_loop.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Pas de nouveau cycle d'appels Apex (r\'e8gle APEX-REL-003).\par
+\pard\sb160\sa80\keepn\f0\fs26\b Signaux d'alerte (\'e0 escalader au manager)\b0\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Tout finding Critical introduit qui n'est pas corrig\'e9 avant la GA.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Hausse sup\'e9rieure \'e0 X % du score de personnalisation sans story d'\'e9volution associ\'e9e (seuil X \'e0 d\'e9finir avec le Design Review, par exemple 10 %).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Passage du niveau Adopt vs Adapt \'e0 un palier sup\'e9rieur (Adopt -> Adapt Low, Adapt Low -> Adapt Medium...).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Apparition d'un Flow Tr\'e8s complexe non document\'e9.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Hausse importante du nombre de violations PMD de priorit\'e9 1 ou 2.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 4.4 Rituel de mesure\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab \'c0 chaque RC : le Tech Lead g\'e9n\'e8re la doc, alimente le comparatif, partage au Design Review au moins 48 h avant la r\'e9union.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Pendant le Design Review : revue des r\'e9gressions et des points \'ab Surveiller \'bb. D\'e9cisions trac\'e9es dans le compte rendu en r\'e9f\'e9ren\'e7ant l'identifiant de r\'e8gle (par exemple APEX-SEC-001).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab \'c0 la GA : g\'e9n\'e9ration officielle, archivage du dossier en lecture seule, mise \'e0 jour du tableau de bord cumul\'e9 _history/dashboard.xlsx.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Hypercare : g\'e9n\'e9ration hebdomadaire pour d\'e9tecter les correctifs intrusifs.\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 5. Tableau de bord d'\'e9volution\b0\cf1\fs22\par
+\pard\sa120\sl276\slmult1\fs22 Le tableau de bord cumul\'e9 historise une ligne par release. Il sert au manager pour piloter la trajectoire de l'org dans la dur\'e9e.\par
+\trowd\trgaph108\trleft0\cellx2400\cellx3600\cellx5000\cellx6200\cellx7000\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 \b Release\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Date GA\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Score perso\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Adopt/Adapt\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Critical\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b Major\b0 \cell\pard\intbl\sa0\sl240\slmult1\fs20 \b PMD P1\b0 \cell\row
+\trowd\trgaph108\trleft0\cellx2400\cellx3600\cellx5000\cellx6200\cellx7000\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 Baseline T0\cell\pard\intbl\sa0\sl240\slmult1\fs20 2026-04-25\cell\pard\intbl\sa0\sl240\slmult1\fs20 120 (Moyen)\cell\pard\intbl\sa0\sl240\slmult1\fs20 80 (Adapt Low)\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 12\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\row
+\trowd\trgaph108\trleft0\cellx2400\cellx3600\cellx5000\cellx6200\cellx7000\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 release/2026.05\cell\pard\intbl\sa0\sl240\slmult1\fs20 2026-05-26\cell\pard\intbl\sa0\sl240\slmult1\fs20 152 (Moyen)\cell\pard\intbl\sa0\sl240\slmult1\fs20 98 (Adapt Low)\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 11\cell\pard\intbl\sa0\sl240\slmult1\fs20 1\cell\row
+\trowd\trgaph108\trleft0\cellx2400\cellx3600\cellx5000\cellx6200\cellx7000\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 release/2026.06\cell\pard\intbl\sa0\sl240\slmult1\fs20 2026-06-30\cell\pard\intbl\sa0\sl240\slmult1\fs20 164 (Moyen)\cell\pard\intbl\sa0\sl240\slmult1\fs20 108 (Adapt Low)\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\pard\intbl\sa0\sl240\slmult1\fs20 9\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\row
+\trowd\trgaph108\trleft0\cellx2400\cellx3600\cellx5000\cellx6200\cellx7000\cellx7800\cellx9000\pard\intbl\sa0\sl240\slmult1\fs20 release/2026.07\cell\pard\intbl\sa0\sl240\slmult1\fs20 2026-07-28\cell\pard\intbl\sa0\sl240\slmult1\fs20 180 (Moyen)\cell\pard\intbl\sa0\sl240\slmult1\fs20 121 (Adapt Med)\cell\pard\intbl\sa0\sl240\slmult1\fs20 1\cell\pard\intbl\sa0\sl240\slmult1\fs20 10\cell\pard\intbl\sa0\sl240\slmult1\fs20 0\cell\row
+\pard\sa120\sl276\slmult1\fs22 \par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Conserver les 8 \'e0 10 derni\'e8res releases visibles, archiver les autres.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Tracer en plus une courbe du score perso et du score Adopt vs Adapt (Excel ou outil BI).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Mettre en \'e9vidence visuellement les passages de palier (Adopt -> Adapt Low...) car ils refl\'e8tent un vrai changement de nature.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Inclure le tableau dans le bilan de fin de programme ou de release majeure.\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 6. Gouvernance et bonnes pratiques\b0\cf1\fs22\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 6.1 Invariance de la configuration\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Ne pas modifier rules.xml, exclusion.xlsx, les poids de scoring ou le ruleset PMD entre deux releases sans rebaseliner.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Si une r\'e8gle est ajout\'e9e, modifi\'e9e ou d\'e9sactiv\'e9e : produire deux baselines (avant / apr\'e8s) et les conserver toutes les deux pour garantir la tra\'e7abilit\'e9.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab La version de _config/ utilis\'e9e est inscrite dans le README de chaque g\'e9n\'e9ration (commit hash ou date).\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 6.2 Tra\'e7abilit\'e9 des d\'e9cisions\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Toute exception (finding accept\'e9) est consign\'e9e dans decisions/<release-id>-decisions.md, en r\'e9f\'e9ren\'e7ant l'identifiant de r\'e8gle.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Pas de modification de exclusion.xlsx pour masquer un probl\'e8me sans validation Design Review formelle.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Le compte rendu de Design Review est archiv\'e9 dans design-review/<date>-CR.docx, \'e0 c\'f4t\'e9 du dossier de la release.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 6.3 Quand rebaseliner ?\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Refonte fonctionnelle majeure (nouveau module, nouvelle ligne m\'e9tier).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Changement de scope du retrieve (nouveaux types metadata).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab \'c9volution des r\'e8gles d'analyse ou des poids de scoring valid\'e9e par le Design Review.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Changement d'org de r\'e9f\'e9rence (par exemple passage \'e0 une nouvelle GA initiale apr\'e8s un go-live majeur).\par
+\pard\sa120\sl276\slmult1\li567\ri567\i\cf3\fs22 R\'e8gle d'or : on ne rebaseline JAMAIS pour faire dispara\'eetre une r\'e9gression. Une r\'e9gression doit \'eatre corrig\'e9e ou explicitement accept\'e9e en Design Review.\i0\cf1\par
+\page
+\pard\sb240\sa120\keepn\f0\fs40\b\cf2 7. Annexes\b0\cf1\fs22\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 7.1 Arborescence type du r\'e9pertoire commun\b0\cf1\fs22\par
+\pard\sa60\sl240\slmult1\li360\f1\fs20\cf4 \\\\share\\lucie\\\line +-- _config\\\line |   +-- exclusion.xlsx\line |   +-- rules.xml\line |   +-- pmd_ruleset.xml\line |   +-- weights.json\line +-- _baseline\\\line |   +-- 2026-04-25\\\line |       +-- index.html\line |       +-- excel\\...\line |       +-- word\\summary.docx\line |       +-- word\\data_dictionary.docx\line |       +-- README_baseline.md\line +-- releases\\\line |   +-- release-2026.05\\\line |   |   +-- RC1\\2026-05-12\\...\line |   |   +-- RC2\\2026-05-19\\...\line |   |   +-- GA\\2026-05-26\\...\line |   |   +-- comparison.xlsx\line |   +-- release-2026.06\\\line +-- _history\\\line |   +-- dashboard.xlsx\line +-- decisions\\\line |   +-- release-2026.05-decisions.md\line +-- design-review\\\line     +-- 2026-05-12-CR.docx\line     +-- 2026-05-26-CR.docx\line \f0\fs22\cf1\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 7.2 Cycle complet de mesure (vue synth\'e9tique)\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 1.\tab Pilote outillage : produit la baseline T0 et la publie.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 2.\tab Tech Lead : g\'e9n\'e8re la doc \'e0 chaque RC dans le dossier de la release.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 3.\tab Tech Lead : alimente comparison.xlsx (T0, N-1, N).\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 4.\tab Manager : convoque le Design Review avec le summary.docx et le comparatif.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 5.\tab Design Review : valide ou refuse les \'e9carts vs baseline.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 6.\tab Squad : corrige avant GA ou documente l'exception.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 7.\tab GA : g\'e9n\'e9ration officielle archiv\'e9e en lecture seule, dashboard cumul\'e9 mis \'e0 jour.\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 8.\tab Hypercare : g\'e9n\'e9rations hebdomadaires pour surveiller les correctifs.\par
+\pard\sb200\sa100\keepn\f0\fs30\b\cf2 7.3 Check-list rapide pour le Tech Lead\b0\cf1\fs22\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Configuration _config/ \'e0 la m\'eame version que la baseline ? oui / non\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Retrieve sur le bon p\'e9rim\'e8tre ? oui / non\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Sortie dans le bon sous-dossier de la release ? oui / non\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab comparison.xlsx \'e0 jour avec T0, N-1 et N ? oui / non\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Aucun nouveau Critical / nouveau PMD P1 ? oui / non\par
+\pard\fi-360\li720\sa80\sl276\slmult1\fs22 \bullet\tab Compte rendu Design Review pr\'e9par\'e9 avec les actions ? oui / non\par
+}

@@ -15,6 +15,12 @@ from typing import Callable
 
 from src.analyzer.engine import AnalyzerEngine, AnalyzerReport
 from src.analyzer.rule_catalog import RuleCatalog
+from src.core.ai_usage import (
+    AIUsageEntry,
+    AIUsageStats,
+    compute_ai_usage_stats,
+    scan_ai_usage,
+)
 from src.core.models import MetadataSnapshot, PmdViolation
 from src.core.pmd_service import PmdService
 from src.parsers.salesforce_parser import SalesforceMetadataParser
@@ -45,6 +51,9 @@ class GenerationResult:
     data_dictionary_word: Path | None = None
     summary_word: Path | None = None
     index: Path | None = None
+    ai_usage_page: Path | None = None
+    ai_usage_entries: list[AIUsageEntry] = field(default_factory=list)
+    ai_usage_stats: AIUsageStats | None = None
     object_pages: dict = field(default_factory=dict)
     apex_pages: dict = field(default_factory=dict)
     flow_pages: dict = field(default_factory=dict)
@@ -80,6 +89,7 @@ class SalesforceDocumentationGenerator:
         scoring_thresholds: tuple[int, int, int] | None = None,
         adopt_adapt_thresholds: tuple[int, int, int] | None = None,
         analyzer_rules_path: str | Path | None = None,
+        ai_usage_tags: list[str] | tuple[str, ...] | None = None,
         language: str = "fr",
         log_callback: LogCallback | None = None,
     ) -> None:
@@ -103,6 +113,11 @@ class SalesforceDocumentationGenerator:
         self.analyzer_rules_path = (
             Path(analyzer_rules_path).resolve() if analyzer_rules_path else None
         )
+        self.ai_usage_tags: list[str] = [
+            tag.strip()
+            for tag in (ai_usage_tags or [])
+            if isinstance(tag, str) and tag.strip()
+        ]
         # Language drives the localisation of the Word documents we generate
         # (data dictionary + summary). Falls back to French if the value is
         # not one of the supported codes.
@@ -263,6 +278,11 @@ class SalesforceDocumentationGenerator:
             snapshot, analyzer_report=analyzer_report
         )
         result.excel_preview_pages = html_writer.write_excel_preview_pages()
+        result.ai_usage_page = html_writer.write_ai_usage_page(
+            result.ai_usage_entries,
+            tags=self.ai_usage_tags,
+            stats=result.ai_usage_stats,
+        )
         result.index = html_writer.write_index(
             snapshot,
             result.object_pages,
@@ -273,6 +293,9 @@ class SalesforceDocumentationGenerator:
             pmd_by_artifact,
             omni_pages=result.omni_pages,
             analyzer_report=analyzer_report,
+            ai_usage_entries=result.ai_usage_entries,
+            ai_usage_page=result.ai_usage_page,
+            ai_usage_stats=result.ai_usage_stats,
         )
 
     # ------------------------------------------------------------------
@@ -338,6 +361,28 @@ class SalesforceDocumentationGenerator:
         result.analyzer_report = analyzer_report
         self.log(
             f"Analyseur : {len(analyzer_report.all_findings())} finding(s) detecte(s)."
+        )
+
+        if self.ai_usage_tags:
+            result.ai_usage_entries = scan_ai_usage(snapshot, self.ai_usage_tags)
+            self.log(
+                "Usage IA : "
+                f"{len(result.ai_usage_entries)} occurrence(s) de tag detectee(s) "
+                f"(tags suivis : {', '.join(self.ai_usage_tags)})."
+            )
+        else:
+            result.ai_usage_entries = []
+            self.log("Usage IA : aucun tag configure, evaluation par defaut (0 tagge).")
+
+        result.ai_usage_stats = compute_ai_usage_stats(
+            snapshot, result.ai_usage_entries
+        )
+        stats = result.ai_usage_stats
+        self.log(
+            "Univers personnalisation/code/lowcode : "
+            f"{stats.total} element(s), "
+            f"avec tag IA = {stats.with_tag_count} ({stats.percent_with_tag:.1f} %), "
+            f"sans tag IA = {stats.without_tag_count} ({stats.percent_without_tag:.1f} %)."
         )
 
         self._generate_word(snapshot, analyzer_report, result)

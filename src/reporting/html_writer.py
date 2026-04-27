@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from src.core.ai_usage import AIUsageEntry, AIUsageStats
 from src.core.models import (
     MetadataSnapshot,
     PmdViolation,
@@ -21,6 +22,7 @@ from src.core.models import (
 
 from src.reporting.html import assets
 from src.reporting.html.renderers import (
+    ai_usage as ai_usage_renderer,
     apex as apex_renderer,
     excel_preview as excel_preview_renderer,
     flows as flows_renderer,
@@ -138,6 +140,22 @@ class HtmlReportWriter:
             self.log,
         )
 
+    def write_ai_usage_page(
+        self,
+        entries: list[AIUsageEntry],
+        *,
+        tags: list[str] | None = None,
+        stats: AIUsageStats | None = None,
+    ) -> Path:
+        return ai_usage_renderer.write_ai_usage_page(
+            entries,
+            self.output_dir,
+            self.assets_dir,
+            self.log,
+            tags=tags,
+            stats=stats,
+        )
+
     def write_index(
         self,
         snapshot: MetadataSnapshot,
@@ -150,6 +168,9 @@ class HtmlReportWriter:
         omni_pages: dict[str, list[dict[str, object]]] | None = None,
         *,
         analyzer_report=None,
+        ai_usage_entries: list[AIUsageEntry] | None = None,
+        ai_usage_page: Path | None = None,
+        ai_usage_stats: AIUsageStats | None = None,
     ) -> Path:
         return index_renderer.write_index(
             snapshot,
@@ -164,4 +185,7 @@ class HtmlReportWriter:
             self.log,
             omni_pages=omni_pages,
             analyzer_report=analyzer_report,
+            ai_usage_entries=ai_usage_entries,
+            ai_usage_page=ai_usage_page,
+            ai_usage_stats=ai_usage_stats,
         )
