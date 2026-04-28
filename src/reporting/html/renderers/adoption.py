@@ -14,7 +14,6 @@ from typing import Callable
 
 from src.core.customization_metrics import (
     AdoptionStats,
-    CAPABILITY_CATALOG,
     CapabilityLevel,
 )
 from src.core.models import MetadataSnapshot
@@ -28,6 +27,7 @@ LogCallback = Callable[[str], None]
 
 _LEVEL_TO_CSS = {
     CapabilityLevel.ADOPT: "adopt-level adopt-level--adopt",
+    CapabilityLevel.ADOPT_DECLARATIVE: "adopt-level adopt-level--adopt-declarative",
     CapabilityLevel.ADAPT_LOW: "adopt-level adopt-level--low",
     CapabilityLevel.ADAPT_HIGH: "adopt-level adopt-level--high",
 }
@@ -58,16 +58,21 @@ def _render_overview_cards(stats: AdoptionStats | None) -> str:
         '<div class="cards smallcards">'
         '<div class="card adopt-card adopt-card--adopt">'
         '<span>Adopt (OOTB)</span>'
-        f'<span class="value">{stats.adopt_count}</span>'
-        f'<span class="adopt-percent">{stats.percent_adoption:.1f} %</span>'
+        f'<span class="value">{stats.adopt_ootb_count}</span>'
+        f'<span class="adopt-percent">{stats.percent_adopt_ootb:.1f} %</span>'
+        "</div>"
+        '<div class="card adopt-card adopt-card--adopt-declarative">'
+        '<span>Adopt declaratif</span>'
+        f'<span class="value">{stats.adopt_declarative_count}</span>'
+        f'<span class="adopt-percent">{stats.percent_adopt_declarative:.1f} %</span>'
         "</div>"
         '<div class="card adopt-card adopt-card--low">'
-        '<span>Adapt declaratif</span>'
+        '<span>Adapt (declaratif)</span>'
         f'<span class="value">{stats.adapt_low_count}</span>'
         f'<span class="adopt-percent">{stats.percent_adapt_low:.1f} %</span>'
         "</div>"
         '<div class="card adopt-card adopt-card--high">'
-        '<span>Adapt code</span>'
+        '<span>Adapt (code)</span>'
         f'<span class="value">{stats.adapt_high_count}</span>'
         f'<span class="adopt-percent">{stats.percent_adapt_high:.1f} %</span>'
         "</div>"
@@ -83,12 +88,11 @@ def _render_capability_table(stats: AdoptionStats | None) -> str:
     if stats is None or not stats.assessments:
         return "<p class='empty'>Aucune capacite evaluee.</p>"
 
-    by_id = {a.capability_id: a for a in stats.assessments}
     rows: list[str] = []
-    for definition in CAPABILITY_CATALOG:
-        assessment = by_id.get(definition.capability_id)
-        if assessment is None:
-            continue
+    # Iterate over the assessments in the order produced by
+    # ``compute_adoption_stats`` so user-defined capabilities (added via
+    # the configuration screen) are listed alongside the catalogue ones.
+    for assessment in stats.assessments:
         css_class = _LEVEL_TO_CSS.get(
             assessment.level, "adopt-level adopt-level--adopt"
         )
@@ -127,19 +131,22 @@ def _render_page(
 {back_link}
 <h1>Posture Adopt vs Adapt</h1>
 <p>Cette page evalue, pour chaque capacite Salesforce du catalogue
-interne, si l'org est restee proche de l'<em>out-of-the-box</em>
-(<strong>Adopt</strong>), si elle l'a etendue par configuration
-declarative (<strong>Adapt declaratif</strong> : flows, validation
-rules, FlexiPages, permission sets, reports custom, OmniStudio data
-transforms, email alerts...) ou si elle a recu de l'extension par code
-(<strong>Adapt code</strong> : Apex triggers, classes avec callout ou
-async, LWC, OmniScripts, profile custom, Apex avec
-<code>addError</code> ou <code>Messaging.sendEmail</code>...).</p>
+configure, si l'org est restee proche de l'<em>out-of-the-box</em>
+(<strong>Adopt (OOTB)</strong>), si elle s'appuie sur les fonctionnalites
+standards utilisees declarativement (<strong>Adopt declaratif</strong>),
+si elle l'a etendue par configuration metier
+(<strong>Adapt (declaratif)</strong> : flows, validation rules,
+FlexiPages, permission sets, reports custom, email alerts...) ou si
+elle a recu de l'extension par code (<strong>Adapt (code)</strong> :
+Apex triggers, classes avec callout ou async, LWC, OmniScripts, profile
+custom, Apex avec <code>addError</code> ou
+<code>Messaging.sendEmail</code>...).</p>
 <p>Le pourcentage d'adoption est calcule en agregant les poids des
-capacites detectees comme <em>Adopt</em>, divise par le poids total des
-9 capacites du catalogue (poids total 20). C'est cette ponderation qui
-permet a la <em>Securite</em> ou au <em>Modele de donnees</em> de peser
-plus que par exemple <em>OmniStudio</em>.</p>
+capacites classees <em>Adopt (OOTB)</em> et <em>Adopt declaratif</em>,
+divise par le poids total des capacites configurees. C'est cette
+ponderation, modifiable depuis l'ecran de configuration de
+l'application, qui permet a la <em>Securite</em> ou au <em>Modele de
+donnees</em> de peser plus que par exemple <em>OmniStudio</em>.</p>
 {overview}
 <h2>Detail par capacite</h2>
 {table}

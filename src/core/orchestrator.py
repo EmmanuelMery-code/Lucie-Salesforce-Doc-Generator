@@ -24,6 +24,7 @@ from src.core.ai_usage import (
 from src.core.customization_metrics import (
     AdoptionStats,
     DataModelCustomisationStats,
+    PostureCapabilityConfig,
     compute_adoption_stats,
     compute_data_model_stats,
 )
@@ -101,6 +102,7 @@ class SalesforceDocumentationGenerator:
         adopt_adapt_thresholds: tuple[int, int, int] | None = None,
         analyzer_rules_path: str | Path | None = None,
         ai_usage_tags: list[str] | tuple[str, ...] | None = None,
+        posture_config: list[PostureCapabilityConfig] | None = None,
         index_card_visibility: IndexCardVisibility | None = None,
         language: str = "fr",
         log_callback: LogCallback | None = None,
@@ -130,6 +132,7 @@ class SalesforceDocumentationGenerator:
             for tag in (ai_usage_tags or [])
             if isinstance(tag, str) and tag.strip()
         ]
+        self.posture_config: list[PostureCapabilityConfig] = list(posture_config or [])
         self.index_card_visibility: IndexCardVisibility = (
             index_card_visibility
             if index_card_visibility is not None
@@ -424,7 +427,9 @@ class SalesforceDocumentationGenerator:
             f"global custom = {dm_stats.percent_custom_global:.1f} %."
         )
 
-        result.adoption_stats = compute_adoption_stats(snapshot)
+        result.adoption_stats = compute_adoption_stats(
+            snapshot, self.posture_config or None
+        )
         adoption = result.adoption_stats
         self.log(
             "Posture Adopt vs Adapt : "

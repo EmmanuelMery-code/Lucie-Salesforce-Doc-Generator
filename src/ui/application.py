@@ -20,6 +20,7 @@ from src.ai import (
 )
 from src.analyzer.models import Rule
 from src.analyzer.rule_catalog import DEFAULT_RULES_PATH, RuleCatalog
+from src.core.customization_metrics import PostureCapabilityConfig
 from src.core.index_card_visibility import (
     IndexCardVisibility,
     parse_index_card_visibility,
@@ -41,15 +42,23 @@ from src.ui.constants import (
     ORG_CHECK_APP_URL as UI_ORG_CHECK_APP_URL,
     ORG_CHECK_GITHUB_URL as UI_ORG_CHECK_GITHUB_URL,
 )
-from src.ui import ai_tags_panel, analyzer_rules_panel, discussion_panel
+from src.ui import (
+    ai_tags_panel,
+    analyzer_rules_panel,
+    discussion_panel,
+    posture_capability_panel,
+)
 from src.ui.scoring_screens import show_adopt_adapt_screen, show_scoring_screen
 from src.ui.settings import (
     DEFAULT_AI_USAGE_TAGS,
+    default_posture_config,
     load_settings,
     parse_ai_tags,
+    parse_posture_config,
     parse_thresholds,
     parse_weights,
     save_settings,
+    serialize_posture_config,
 )
 from src.ui.threshold_screen import show_threshold_screen
 from src.ui.translations import TRANSLATIONS as UI_TRANSLATIONS
@@ -248,6 +257,10 @@ class Application(tk.Tk):
         self.adopt_adapt_thresholds = self._load_adopt_adapt_thresholds(self.settings)
         self.ai_usage_tags: list[str] = parse_ai_tags(self.settings)
         self._ai_tags_listbox: tk.Listbox | None = None
+        self.posture_config: list[PostureCapabilityConfig] = parse_posture_config(
+            self.settings
+        )
+        self._posture_panel_state: dict[str, object] | None = None
 
         self.queue: Queue[tuple[str, object]] = Queue()
         self.worker: Thread | None = None
@@ -686,11 +699,13 @@ class Application(tk.Tk):
         rules_tab = ttk.Frame(notebook, padding=12)
         ai_tags_tab = ttk.Frame(notebook, padding=12)
         index_cards_tab = ttk.Frame(notebook, padding=12)
+        posture_tab = ttk.Frame(notebook, padding=12)
         notebook.add(doc_tab, text=self._t("configuration_tab_documentation"))
         notebook.add(discussion_tab, text=self._t("configuration_tab_discussion"))
         notebook.add(rules_tab, text=self._t("configuration_tab_rules"))
         notebook.add(ai_tags_tab, text=self._t("configuration_tab_ai_tags"))
         notebook.add(index_cards_tab, text=self._t("configuration_tab_index_cards"))
+        notebook.add(posture_tab, text=self._t("configuration_tab_posture"))
 
         edit_vars = {
             "language": tk.StringVar(value=self._language_display(self.language)),
@@ -764,6 +779,7 @@ class Application(tk.Tk):
         self._build_configuration_rules_tab(rules_tab)
         self._build_configuration_ai_tags_tab(ai_tags_tab)
         self._build_configuration_index_cards_tab(index_cards_tab, edit_vars)
+        self._build_configuration_posture_tab(posture_tab)
 
         buttons_row = ttk.Frame(scrollable_frame)
         buttons_row.pack(fill="x", pady=(12, 0))
@@ -963,6 +979,9 @@ class Application(tk.Tk):
     def _build_configuration_ai_tags_tab(self, parent: ttk.Frame) -> None:
         ai_tags_panel.build_panel(self, parent)
 
+    def _build_configuration_posture_tab(self, parent: ttk.Frame) -> None:
+        posture_capability_panel.build_panel(self, parent)
+
     def _build_configuration_index_cards_tab(
         self, parent: ttk.Frame, edit_vars: dict[str, tk.Variable]
     ) -> None:
@@ -1154,6 +1173,9 @@ class Application(tk.Tk):
         self.ai_usage_tags = collected_tags or list(DEFAULT_AI_USAGE_TAGS)
         self._reset_ai_tags_state()
 
+        self.posture_config = posture_capability_panel.collect_config(self)
+        posture_capability_panel.reset_state(self)
+
         self._save_settings()
 
         if language_changed:
@@ -1293,6 +1315,7 @@ class Application(tk.Tk):
             "scoring_thresholds": list(self.scoring_thresholds),
             "adopt_adapt_thresholds": list(self.adopt_adapt_thresholds),
             "ai_usage_tags": list(self.ai_usage_tags),
+            "posture_adopt_adapt": serialize_posture_config(self.posture_config),
         }
         payload.update(self._current_index_card_visibility().to_settings())
         save_settings(self.settings_path, payload)
@@ -1663,6 +1686,7 @@ class Application(tk.Tk):
                 scoring_thresholds=tuple(self.scoring_thresholds),
                 adopt_adapt_thresholds=tuple(self.adopt_adapt_thresholds),
                 ai_usage_tags=list(self.ai_usage_tags),
+                posture_config=list(self.posture_config),
                 index_card_visibility=self._current_index_card_visibility(),
                 language=self.language,
                 log_callback=self._queue_log,
@@ -1797,6 +1821,7 @@ class Application(tk.Tk):
                 scoring_thresholds=tuple(self.scoring_thresholds),
                 adopt_adapt_thresholds=tuple(self.adopt_adapt_thresholds),
                 ai_usage_tags=list(self.ai_usage_tags),
+                posture_config=list(self.posture_config),
                 index_card_visibility=self._current_index_card_visibility(),
                 language=self.language,
                 log_callback=self._queue_log,

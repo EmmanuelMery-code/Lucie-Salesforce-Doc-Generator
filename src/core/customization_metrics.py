@@ -124,11 +124,36 @@ class CapabilityLevel(str, Enum):
 
     Stored as ``str`` so the enum values serialise naturally to JSON and
     compare directly against the labels rendered on the report.
+
+    Two levels count as *adoption* (``ADOPT`` for out-of-the-box usage and
+    ``ADOPT_DECLARATIVE`` for standard Salesforce features used through
+    declarative tooling), while ``ADAPT_LOW`` / ``ADAPT_HIGH`` count as
+    *adaptation*.
     """
 
-    ADOPT = "Adopt"
+    ADOPT = "Adopt (OOTB)"
+    ADOPT_DECLARATIVE = "Adopt declaratif"
     ADAPT_LOW = "Adapt (declaratif)"
     ADAPT_HIGH = "Adapt (code)"
+
+
+# All level identifiers exposed to the configuration UI. Order matters: it
+# is the order used to render dropdowns and to scan for "auto" detection.
+CAPABILITY_LEVEL_ORDER: tuple[CapabilityLevel, ...] = (
+    CapabilityLevel.ADOPT,
+    CapabilityLevel.ADOPT_DECLARATIVE,
+    CapabilityLevel.ADAPT_LOW,
+    CapabilityLevel.ADAPT_HIGH,
+)
+
+
+_ADOPTION_LEVELS: frozenset[CapabilityLevel] = frozenset(
+    {CapabilityLevel.ADOPT, CapabilityLevel.ADOPT_DECLARATIVE}
+)
+
+
+def _is_adoption(level: CapabilityLevel) -> bool:
+    return level in _ADOPTION_LEVELS
 
 
 @dataclass(slots=True, frozen=True)
@@ -172,8 +197,19 @@ class AdoptionStats:
         return sum(a.weight for a in self.assessments if a.level is level)
 
     @property
-    def adopt_weight(self) -> int:
+    def adopt_ootb_weight(self) -> int:
         return self._weight_for(CapabilityLevel.ADOPT)
+
+    @property
+    def adopt_declarative_weight(self) -> int:
+        return self._weight_for(CapabilityLevel.ADOPT_DECLARATIVE)
+
+    @property
+    def adopt_weight(self) -> int:
+        # Aggregate weight of the two "adoption" levels (OOTB + declarative).
+        # Existing renderers and tests rely on this name representing the
+        # full adoption side of the scale.
+        return self.adopt_ootb_weight + self.adopt_declarative_weight
 
     @property
     def adapt_low_weight(self) -> int:
@@ -191,8 +227,18 @@ class AdoptionStats:
         return sum(1 for a in self.assessments if a.level is level)
 
     @property
-    def adopt_count(self) -> int:
+    def adopt_ootb_count(self) -> int:
         return self._count_for(CapabilityLevel.ADOPT)
+
+    @property
+    def adopt_declarative_count(self) -> int:
+        return self._count_for(CapabilityLevel.ADOPT_DECLARATIVE)
+
+    @property
+    def adopt_count(self) -> int:
+        # Total number of capabilities classified as adoption (OOTB or
+        # declarative). Kept for backwards compatibility with the renderers.
+        return self.adopt_ootb_count + self.adopt_declarative_count
 
     @property
     def adapt_low_count(self) -> int:
@@ -221,6 +267,22 @@ class AdoptionStats:
     @property
     def percent_adaptation(self) -> float:
         return 100.0 - self.percent_adoption if self.total_weight else 0.0
+
+    @property
+    def percent_adopt_ootb(self) -> float:
+        return (
+            self.adopt_ootb_weight / self.total_weight * 100.0
+            if self.total_weight
+            else 0.0
+        )
+
+    @property
+    def percent_adopt_declarative(self) -> float:
+        return (
+            self.adopt_declarative_weight / self.total_weight * 100.0
+            if self.total_weight
+            else 0.0
+        )
 
     @property
     def percent_adapt_low(self) -> float:
@@ -255,6 +317,78 @@ CAPABILITY_CATALOG: tuple[CapabilityDefinition, ...] = (
     CapabilityDefinition("notifications", "Notifications & Email", 2),
     CapabilityDefinition("omnistudio", "OmniStudio", 1),
 )
+
+
+# ---------------------------------------------------------------------------
+# Posture configuration - lets the user override weights/levels and add
+# bespoke capabilities on top of CAPABILITY_CATALOG.
+# ---------------------------------------------------------------------------
+
+
+# Catalogue of metadata counters that can drive a custom user-defined
+# capability. The label is what the configuration UI shows; the resolver
+# returns the count for a given snapshot (so we can produce evidence
+# automatically). Each entry is small and self-contained on purpose so
+# callers can iterate the dict without importing other modules.
+SNAPSHOT_METRIC_KEYS: dict[str, str] = {
+    "custom_objects": "Objets custom",
+    "custom_fields": "Champs custom",
+    "record_types": "Record types",
+    "validation_rules": "Regles de validation",
+    "layouts": "Page layouts",
+    "custom_tabs": "Onglets custom",
+    "custom_apps": "Applications custom",
+    "flows": "Flows",
+    "apex_classes": "Classes Apex",
+    "apex_triggers": "Triggers Apex",
+    "omni_scripts": "OmniScripts",
+    "omni_integration_procedures": "Integration Procedures Omni",
+    "omni_ui_cards": "UI Cards / FlexCards",
+    "omni_data_transforms": "Data Transforms Omni",
+    "lwc_count": "Composants LWC",
+    "flexipage_count": "FlexiPages (pages Lightning)",
+}
+
+
+def snapshot_metric_count(snapshot: MetadataSnapshot, key: str) -> int:
+    """Return the integer count stored on ``snapshot.metrics`` for ``key``."""
+
+    metrics = getattr(snapshot, "metrics", None)
+    if metrics is None:
+        return 0
+    value = getattr(metrics, key, 0)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+@dataclass(slots=True)
+class PostureCapabilityConfig:
+    """User-provided configuration overlay for a posture capability.
+
+    The configuration screen edits a list of these entries: each one
+    targets a builtin capability (matching ``CAPABILITY_CATALOG``) or a
+    custom user-defined capability (``custom=True``).
+
+    ``level`` controls the override:
+
+    * ``None``  : use the heuristic assessor (only meaningful for builtin
+      capabilities since custom ones have no assessor).
+    * any :class:`CapabilityLevel` value: force that level regardless of
+      the snapshot. The assessor still runs to gather evidence.
+
+    For custom capabilities ``metadata_key`` points at one of
+    :data:`SNAPSHOT_METRIC_KEYS`; the count is used to build an evidence
+    line so the report stays auditable.
+    """
+
+    capability_id: str
+    label: str
+    weight: int
+    level: CapabilityLevel | None = None
+    custom: bool = False
+    metadata_key: str = ""
 
 
 # Standard Salesforce profiles that should never count as custom. The
@@ -584,34 +718,128 @@ _ASSESSORS = {
 }
 
 
-def compute_adoption_stats(snapshot: MetadataSnapshot) -> AdoptionStats:
-    """Run each capability assessor against ``snapshot`` and return the stats."""
+def _evaluate_builtin(
+    definition: CapabilityDefinition,
+    snapshot: MetadataSnapshot,
+    override: PostureCapabilityConfig | None,
+) -> CapabilityAssessment | None:
+    """Build the assessment for a builtin capability, applying overrides."""
+
+    assessor = _ASSESSORS.get(definition.capability_id)
+    detected_level: CapabilityLevel
+    evidence: list[str]
+    if assessor is None:
+        detected_level = CapabilityLevel.ADOPT
+        evidence = []
+    else:
+        detected_level, evidence = assessor(snapshot)
+
+    weight = definition.weight
+    level = detected_level
+    if override is not None:
+        weight = override.weight if override.weight > 0 else weight
+        if override.level is not None:
+            level = override.level
+            if level is not detected_level:
+                evidence = [
+                    f"Niveau force par configuration ({level.value})",
+                    *evidence,
+                ]
+    label = override.label if override is not None and override.label else definition.label
+    return CapabilityAssessment(
+        capability_id=definition.capability_id,
+        label=label,
+        weight=weight,
+        level=level,
+        evidence=evidence,
+    )
+
+
+def _evaluate_custom(
+    config: PostureCapabilityConfig,
+    snapshot: MetadataSnapshot,
+) -> CapabilityAssessment:
+    """Build the assessment for a user-defined capability."""
+
+    level = config.level or CapabilityLevel.ADOPT
+    evidence: list[str] = []
+    if config.metadata_key:
+        count = snapshot_metric_count(snapshot, config.metadata_key)
+        label = SNAPSHOT_METRIC_KEYS.get(config.metadata_key, config.metadata_key)
+        evidence.append(f"{label} : {count}")
+    evidence.append(f"Capacite definie par l'utilisateur ({level.value})")
+    return CapabilityAssessment(
+        capability_id=config.capability_id,
+        label=config.label or config.capability_id,
+        weight=max(config.weight, 0),
+        level=level,
+        evidence=evidence,
+    )
+
+
+def compute_adoption_stats(
+    snapshot: MetadataSnapshot,
+    posture_config: list[PostureCapabilityConfig] | None = None,
+) -> AdoptionStats:
+    """Run each capability assessor against ``snapshot`` and return the stats.
+
+    When ``posture_config`` is provided the iteration order, weights,
+    levels and label of each capability come from the configuration. New
+    user-defined capabilities (``custom=True``) are evaluated from a
+    metadata counter so they can contribute to the percentage even though
+    no heuristic assessor exists for them.
+    """
 
     stats = AdoptionStats()
-    for definition in CAPABILITY_CATALOG:
-        assessor = _ASSESSORS.get(definition.capability_id)
-        if assessor is None:
+
+    if not posture_config:
+        for definition in CAPABILITY_CATALOG:
+            assessment = _evaluate_builtin(definition, snapshot, None)
+            if assessment is not None:
+                stats.assessments.append(assessment)
+        return stats
+
+    builtin_by_id = {d.capability_id: d for d in CAPABILITY_CATALOG}
+    seen_ids: set[str] = set()
+    for entry in posture_config:
+        if entry.capability_id in seen_ids:
             continue
-        level, evidence = assessor(snapshot)
-        stats.assessments.append(
-            CapabilityAssessment(
-                capability_id=definition.capability_id,
-                label=definition.label,
-                weight=definition.weight,
-                level=level,
-                evidence=evidence,
-            )
-        )
+        seen_ids.add(entry.capability_id)
+        if entry.custom:
+            stats.assessments.append(_evaluate_custom(entry, snapshot))
+            continue
+        definition = builtin_by_id.get(entry.capability_id)
+        if definition is None:
+            # Stale config pointing at a removed builtin: skip silently
+            # rather than break the report.
+            continue
+        assessment = _evaluate_builtin(definition, snapshot, entry)
+        if assessment is not None:
+            stats.assessments.append(assessment)
+
+    # Append any builtin capability the configuration does not mention so
+    # the catalogue stays exhaustive even after an upgrade introduces new
+    # default capabilities.
+    for definition in CAPABILITY_CATALOG:
+        if definition.capability_id in seen_ids:
+            continue
+        assessment = _evaluate_builtin(definition, snapshot, None)
+        if assessment is not None:
+            stats.assessments.append(assessment)
     return stats
 
 
 __all__ = [
     "AdoptionStats",
     "CAPABILITY_CATALOG",
+    "CAPABILITY_LEVEL_ORDER",
     "CapabilityAssessment",
     "CapabilityDefinition",
     "CapabilityLevel",
     "DataModelCustomisationStats",
+    "PostureCapabilityConfig",
+    "SNAPSHOT_METRIC_KEYS",
     "compute_adoption_stats",
     "compute_data_model_stats",
+    "snapshot_metric_count",
 ]
