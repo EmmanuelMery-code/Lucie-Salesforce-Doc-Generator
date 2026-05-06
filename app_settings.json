@@ -1,0 +1,291 @@
+{
+  "language": "fr",
+  "login_target": "sandbox",
+  "instance_url": "https://test.salesforce.com",
+  "alias": "mh PV",
+  "source_folder": "C:/Users/emery/Desktop/Lucie/org/retrieve 20260430/PV/retrieve",
+  "output_folder": "C:/Users/emery/Desktop/Lucie/org/retrieve 20260430/PV/Documentation",
+  "exclusion_file": "C:/Users/emery/Desktop/Lucie/code/20260506_refacto_prompt_agent/exclusion.xlsx",
+  "pmd_enabled": true,
+  "pmd_ruleset_file": "C:/Users/emery/Desktop/code/HtmlDocGenerator/2026/apex-ruleset.xml",
+  "org_check_type": "apex-classes",
+  "ai_provider": "Claude",
+  "claude_api_key": "",
+  "gemini_api_key": "",
+  "claude_model": "claude-sonnet-4-5-20250929",
+  "gemini_model": "gemini-2.5-flash-lite",
+  "system_prompt": "Tu es un expert consultant et architecte Salesforce. Tu aides l'utilisateur a analyser une org Salesforce, a donner des recommandations sur la customisation, l'arbitrage Adopt vs Adapt, Apex, Flows, LWC, OmniStudio, la securite et la gestion des livraisons. Appuie toujours tes reponses sur le contexte fourni sur l'org.\n\nPour repondre precisement tu DOIS parcourir le depot source ainsi que la documentation generee : explore de maniere recursive chaque dossier et sous-dossier sur plusieurs niveaux (objects/, classes/, triggers/, flows/, lwc/, aura/, omniScripts/, integrationProcedures/, profiles/, permissionsets/, applications/, layouts/, flexipages/, staticresources/, customMetadata/, etc.). Ouvre les fichiers sources pertinents (*.xml, *.cls, *.trigger, *.js, *.html, *.css, meta.xml, *.flow-meta.xml, *.object-meta.xml, validationRules/*.xml) ET les pages HTML de documentation correspondantes (index.html, objects/*.html, apex/*.html, flows/*.html, omni/*.html, adopt_adapt.html, scoring.html) avant de repondre. Recoupe systematiquement le code et la documentation, et cite les chemins exacts des fichiers consultes.\n\nSi une information manque, dis-le, precise quels dossiers ou fichiers resteraient a ouvrir et propose la facon de la recuperer. Prefere des reponses concises et actionnables, avec des listes a puces et des extraits de code lorsque pertinent. Reponds en francais.",
+  "generate_excels": true,
+  "generate_org_check_reports": true,
+  "generate_data_dictionary_word": true,
+  "generate_summary_word": true,
+  "scoring_weights": {
+    "custom_objects": 5,
+    "custom_fields": 1,
+    "record_types": 3,
+    "validation_rules": 2,
+    "layouts": 1,
+    "custom_tabs": 2,
+    "custom_apps": 2,
+    "flows": 10,
+    "apex_classes": 20,
+    "apex_triggers": 25,
+    "omni_scripts": 8,
+    "omni_integration_procedures": 10,
+    "omni_ui_cards": 8,
+    "omni_data_transforms": 10,
+    "agents": 5,
+    "gen_ai_prompts": 4,
+    "einstein_predictions": 5
+  },
+  "adopt_adapt_weights": {
+    "custom_objects": 5,
+    "custom_fields": 1,
+    "apex_classes": 30,
+    "flows": 10,
+    "lwc": 30,
+    "flexipages": 2,
+    "omni_scripts": 8,
+    "omni_integration_procedures": 10,
+    "omni_ui_cards": 5,
+    "omni_data_transforms": 10,
+    "agents": 30,
+    "gen_ai_prompts": 25,
+    "einstein_predictions": 30
+  },
+  "scoring_thresholds": [
+    500,
+    1500,
+    3500
+  ],
+  "adopt_adapt_thresholds": [
+    1000,
+    3000,
+    6000
+  ],
+  "ai_usage_tags": [
+    "@IAgenerated",
+    "@IAassisted",
+    "@MadeInClaude"
+  ],
+  "posture_adopt_adapt": {
+    "capabilities": [
+      {
+        "capability_id": "data_model",
+        "label": "Modele de donnees",
+        "weight": 3,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "security",
+        "label": "Securite",
+        "weight": 3,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "automation",
+        "label": "Automatisation",
+        "weight": 3,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "validation",
+        "label": "Validation metier",
+        "weight": 2,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "ui_layout",
+        "label": "UI / Layout",
+        "weight": 2,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "integration",
+        "label": "Integration",
+        "weight": 5,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "reporting",
+        "label": "Reporting",
+        "weight": 2,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "notifications",
+        "label": "Notifications & Email",
+        "weight": 2,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "omnistudio",
+        "label": "OmniStudio",
+        "weight": 3,
+        "level": null,
+        "custom": false,
+        "metadata_key": ""
+      },
+      {
+        "capability_id": "custom_objets_custom",
+        "label": "Objets custom",
+        "weight": 5,
+        "level": null,
+        "custom": true,
+        "metadata_key": "custom_objects"
+      },
+      {
+        "capability_id": "custom_champs_custom",
+        "label": "Champs custom",
+        "weight": 2,
+        "level": null,
+        "custom": true,
+        "metadata_key": "custom_fields"
+      },
+      {
+        "capability_id": "custom_record_types",
+        "label": "Record types",
+        "weight": 3,
+        "level": null,
+        "custom": true,
+        "metadata_key": "record_types"
+      },
+      {
+        "capability_id": "custom_regles_de_validation",
+        "label": "Regles de validation",
+        "weight": 2,
+        "level": null,
+        "custom": true,
+        "metadata_key": "validation_rules"
+      },
+      {
+        "capability_id": "custom_page_layouts",
+        "label": "Page layouts",
+        "weight": 3,
+        "level": null,
+        "custom": true,
+        "metadata_key": "layouts"
+      },
+      {
+        "capability_id": "custom_onglets_custom",
+        "label": "Onglets custom",
+        "weight": 3,
+        "level": null,
+        "custom": true,
+        "metadata_key": "custom_tabs"
+      },
+      {
+        "capability_id": "custom_applications_custom",
+        "label": "Applications custom",
+        "weight": 2,
+        "level": null,
+        "custom": true,
+        "metadata_key": "custom_apps"
+      },
+      {
+        "capability_id": "custom_flows",
+        "label": "Flows",
+        "weight": 2,
+        "level": null,
+        "custom": true,
+        "metadata_key": "flows"
+      },
+      {
+        "capability_id": "custom_classes_apex",
+        "label": "Classes Apex",
+        "weight": 3,
+        "level": null,
+        "custom": true,
+        "metadata_key": "apex_classes"
+      },
+      {
+        "capability_id": "custom_triggers_apex",
+        "label": "Triggers Apex",
+        "weight": 5,
+        "level": null,
+        "custom": true,
+        "metadata_key": "apex_triggers"
+      },
+      {
+        "capability_id": "custom_omniscripts",
+        "label": "OmniScripts",
+        "weight": 2,
+        "level": null,
+        "custom": true,
+        "metadata_key": "omni_scripts"
+      },
+      {
+        "capability_id": "custom_integration_procedures_omni",
+        "label": "Integration Procedures Omni",
+        "weight": 2,
+        "level": null,
+        "custom": true,
+        "metadata_key": "omni_integration_procedures"
+      },
+      {
+        "capability_id": "custom_ui_cards___flexcards",
+        "label": "UI Cards / FlexCards",
+        "weight": 3,
+        "level": null,
+        "custom": true,
+        "metadata_key": "omni_ui_cards"
+      },
+      {
+        "capability_id": "custom_data_transforms_omni",
+        "label": "Data Transforms Omni",
+        "weight": 2,
+        "level": null,
+        "custom": true,
+        "metadata_key": "omni_data_transforms"
+      },
+      {
+        "capability_id": "custom_composants_lwc",
+        "label": "Composants LWC",
+        "weight": 5,
+        "level": null,
+        "custom": true,
+        "metadata_key": "lwc_count"
+      },
+      {
+        "capability_id": "custom_flexipages__pages_lightning",
+        "label": "FlexiPages (pages Lightning)",
+        "weight": 5,
+        "level": null,
+        "custom": true,
+        "metadata_key": "flexipage_count"
+      }
+    ]
+  },
+  "show_card_customization_level": true,
+  "show_card_score": true,
+  "show_card_adopt_vs_adapt": true,
+  "show_card_adopt_adapt_score": true,
+  "show_card_custom_objects": true,
+  "show_card_custom_fields": true,
+  "show_card_flows": true,
+  "show_card_apex_classes_triggers": true,
+  "show_card_omni_components": true,
+  "show_card_findings": true,
+  "show_card_ai_usage": true,
+  "show_card_data_model_footprint": true,
+  "show_card_adopt_adapt_posture": true,
+  "show_card_agents": true,
+  "show_card_gen_ai_prompts": true,
+  "show_card_einstein_predictions": true
+}
