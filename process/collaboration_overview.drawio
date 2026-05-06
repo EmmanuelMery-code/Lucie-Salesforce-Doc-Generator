@@ -1,0 +1,119 @@
+<mxfile host="app.diagrams.net" modified="2026-04-25T08:40:00.000Z" agent="Lucie Process Doc" version="22.0.0" type="device">
+  <diagram name="Collaboration overview" id="collaboration-overview-1">
+    <mxGraphModel dx="1422" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Vue collaborative - Lucie au coeur de l'equipe" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#0A4480;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1080" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="config" value="Configuration partagee&#10;(rules.xml, exclusion.xlsx,&#10;ruleset PMD, poids de scoring)" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="100" width="280" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="squadA_lead" value="Tech Lead Squad A" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="240" width="60" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="squadA" value="Squad A" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="160" y="260" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="squadB_lead" value="Tech Lead Squad B" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="370" width="60" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="squadB" value="Squad B" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="160" y="390" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="squadC_lead" value="Tech Lead Squad C" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="500" width="60" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="squadC" value="Squad C" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="160" y="520" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lucie" value="Lucie&#10;(generation locale&#10;par chaque Squad)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="370" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="shared" value="Repertoire commun&#10;\\share\lucie\&#10;HTML + Excel + Word&#10;+ comptes rendus" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="370" width="200" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="manager" value="Manager / Animateur&#10;Design Review" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="900" y="260" width="60" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="dr" value="Design Review&#10;(reunion periodique)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="880" y="370" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="minutes" value="Compte rendu&#10;decisions tracees" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="900" y="510" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ec_a" style="endArrow=classic;html=1;dashed=1;" edge="1" parent="1" source="config" target="squadA">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec_b" style="endArrow=classic;html=1;dashed=1;" edge="1" parent="1" source="config" target="squadB">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec_c" style="endArrow=classic;html=1;dashed=1;" edge="1" parent="1" source="config" target="squadC">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_a_lucie" style="endArrow=classic;html=1;" edge="1" parent="1" source="squadA" target="lucie">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_b_lucie" style="endArrow=classic;html=1;" edge="1" parent="1" source="squadB" target="lucie">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_c_lucie" style="endArrow=classic;html=1;" edge="1" parent="1" source="squadC" target="lucie">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_lucie_shared" value="depose la doc" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="lucie" target="shared">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_shared_dr" value="alimente" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="shared" target="dr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_manager_dr" style="endArrow=classic;html=1;" edge="1" parent="1" source="manager" target="dr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_dr_minutes" value="produit" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="dr" target="minutes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_minutes_shared" value="archive" style="endArrow=classic;html=1;fontSize=10;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="minutes" target="shared">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_dr_squadA" value="actions retournees aux Squads" style="endArrow=classic;html=1;curved=1;dashed=1;fontSize=10;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="dr" target="squadA">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="700" y="220" />
+              <mxPoint x="320" y="220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="legend" value="Tout le monde travaille depuis le repertoire commun. Les fleches en pointilles representent la diffusion des regles et le retour des actions vers les Squads." style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=2;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="40" y="640" width="1080" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sqlead_a_link" style="endArrow=none;html=1;dashed=0;" edge="1" parent="1" source="squadA_lead" target="squadA">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="sqlead_b_link" style="endArrow=none;html=1;dashed=0;" edge="1" parent="1" source="squadB_lead" target="squadB">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="sqlead_c_link" style="endArrow=none;html=1;dashed=0;" edge="1" parent="1" source="squadC_lead" target="squadC">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
